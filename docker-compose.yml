@@ -1,0 +1,67 @@
+# Marginalia — local Postgres + MinIO (S3-compatible)
+#
+# Pure local-dev config. All values are baked into this file — no .env
+# indirection. Edit here if you want to change a port or credential.
+#
+# Run all `docker compose ...` commands from this directory
+# (marginalia-backend/dev/), not the repo root.
+#
+# Quick start:
+#   docker compose up -d                    # start Postgres + MinIO
+#
+#   # Apply schema — pick the form for your shell:
+#   #   PowerShell:
+#   Get-Content ../../marginalia-db/schema.sql | docker compose exec -T postgres psql -U marginalia -d marginalia
+#   #   bash / Git Bash / cmd:
+#   docker compose exec -T postgres psql -U marginalia -d marginalia < ../../marginalia-db/schema.sql
+#
+#   docker compose down                     # stop (keeps data)
+#   docker compose down -v                  # stop AND wipe data
+#
+# Reachable on:
+#   localhost:5440   Postgres   user: marginalia / pwd: Ktite@2030% / db: marginalia
+#   localhost:9000   MinIO S3 API
+#   localhost:9001   MinIO console     login: minioadmin / minioadmin
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: marginalia-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: marginalia
+      POSTGRES_PASSWORD: Ktite@2030%
+      POSTGRES_DB: marginalia
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C.UTF-8"
+    ports:
+      - "5440:5432"
+    volumes:
+      - marginalia_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marginalia -d marginalia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: marginalia-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - marginalia_minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  marginalia_db:
+  marginalia_minio:
