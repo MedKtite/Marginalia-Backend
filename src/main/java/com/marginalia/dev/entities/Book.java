@@ -34,6 +34,10 @@ public class Book {
 
     private String isbn13;
 
+    // Google Books volume id (set on catalog adds) — lets us fetch the free
+    // public-domain PDF for this title on demand. Null for uploads / manual.
+    private String googleId;
+
     private Integer pageCount;
 
     private Integer durationSec;
@@ -93,6 +97,9 @@ public class Book {
 
     public String getIsbn13() { return isbn13; }
     public void setIsbn13(String isbn13) { this.isbn13 = isbn13; }
+
+    public String getGoogleId() { return googleId; }
+    public void setGoogleId(String googleId) { this.googleId = googleId; }
 
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }

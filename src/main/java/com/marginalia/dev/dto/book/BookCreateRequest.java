@@ -34,6 +34,10 @@ public class BookCreateRequest {
     @Size(min = 13, max = 13)
     private String isbn13;
 
+    /** Google Books volume id from catalog search — enables free public-domain reading. */
+    @Size(max = 64)
+    private String googleId;
+
     private Integer pageCount;
 
     private Integer durationSec;
@@ -75,6 +79,9 @@ public class BookCreateRequest {
 
     public String getIsbn13() { return isbn13; }
     public void setIsbn13(String isbn13) { this.isbn13 = isbn13; }
+
+    public String getGoogleId() { return googleId; }
+    public void setGoogleId(String googleId) { this.googleId = googleId; }
 
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }

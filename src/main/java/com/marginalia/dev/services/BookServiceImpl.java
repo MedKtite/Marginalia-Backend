@@ -64,6 +64,7 @@ public class BookServiceImpl implements BookService {
         b.setPublisher(req.getPublisher());
         b.setPublishedYear(req.getPublishedYear());
         b.setIsbn13(req.getIsbn13());
+        b.setGoogleId(req.getGoogleId());
         b.setPageCount(req.getPageCount());
         b.setDurationSec(req.getDurationSec());
         b.setLanguage(req.getLanguage());

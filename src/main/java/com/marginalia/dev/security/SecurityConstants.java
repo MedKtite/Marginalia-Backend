@@ -23,6 +23,7 @@ public final class SecurityConstants {
     public static final String[] AUTH_WHITELIST = {
             "/auth/**",
             "/webhooks/**",      // webhook controllers do their own signature checks
+            "/covers",           // public cover-image proxy (Image.network can't send cookies)
             "/actuator/health",
             "/error"
     };

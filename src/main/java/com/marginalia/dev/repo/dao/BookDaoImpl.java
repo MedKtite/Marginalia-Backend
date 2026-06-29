@@ -24,7 +24,7 @@ public class BookDaoImpl implements BookDao {
 
     private static final String COLUMNS = """
             id, user_id, title, author, narrator, publisher, published_year,
-            isbn_13 AS isbn13, page_count, duration_sec, language,
+            isbn_13 AS isbn13, google_id, page_count, duration_sec, language,
             format, file_key, file_size_bytes, cover_url, cover_dominant_color,
             status, progress_pct, cursor::text AS cursor,
             last_opened_at, finished_at, created_at, updated_at
@@ -70,12 +70,12 @@ public class BookDaoImpl implements BookDao {
         String sql = """
                 INSERT INTO books (
                     user_id, title, author, narrator, publisher, published_year,
-                    isbn_13, page_count, duration_sec, language,
+                    isbn_13, google_id, page_count, duration_sec, language,
                     format, file_key, file_size_bytes, cover_url, cover_dominant_color,
                     status, progress_pct, cursor, last_opened_at
                 ) VALUES (
                     :userId, :title, :author, :narrator, :publisher, :publishedYear,
-                    :isbn13, :pageCount, :durationSec, :language,
+                    :isbn13, :googleId, :pageCount, :durationSec, :language,
                     :format, :fileKey, :fileSizeBytes, :coverUrl, :coverDominantColor,
                     :status, :progressPct, CAST(:cursor AS jsonb), :lastOpenedAt
                 )
@@ -90,6 +90,7 @@ public class BookDaoImpl implements BookDao {
                 .addValue("publisher",          b.getPublisher())
                 .addValue("publishedYear",      b.getPublishedYear())
                 .addValue("isbn13",             b.getIsbn13())
+                .addValue("googleId",           b.getGoogleId())
                 .addValue("pageCount",          b.getPageCount())
                 .addValue("durationSec",        b.getDurationSec())
                 .addValue("language",           b.getLanguage())
