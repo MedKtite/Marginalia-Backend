@@ -72,6 +72,7 @@ public class CoverProxyController {
     private static boolean isAllowedHost(String host) {
         return host.equals("books.google.com")
                 || host.endsWith(".google.com")
-                || host.endsWith(".googleusercontent.com");
+                || host.endsWith(".googleusercontent.com")
+                || host.equals("www.gutenberg.org"); // Discovery: Gutenberg covers
     }
 }
