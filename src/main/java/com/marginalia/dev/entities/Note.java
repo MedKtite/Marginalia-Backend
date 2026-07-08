@@ -25,6 +25,9 @@ public class Note {
 
     private String bodyMd;    // Markdown source
 
+    /** User bookmarked this note into their Saved collection. */
+    private Boolean isSaved;
+
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
     private OffsetDateTime createdAt;
 
@@ -45,6 +48,9 @@ public class Note {
 
     public String getBodyMd() { return bodyMd; }
     public void setBodyMd(String bodyMd) { this.bodyMd = bodyMd; }
+
+    public Boolean getIsSaved() { return isSaved; }
+    public void setIsSaved(Boolean isSaved) { this.isSaved = isSaved; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }

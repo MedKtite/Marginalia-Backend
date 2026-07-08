@@ -14,22 +14,38 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Streams a book-cover image through the backend so the mobile client can load
  * covers it may not be able to reach directly. Public (in AUTH_WHITELIST) since
- * Image.network can't send the session cookie — locked to Google image hosts to
+ * Image.network can't send the session cookie — locked to known image hosts to
  * avoid being an open proxy.
+ *
+ * gutenberg.org quirks handled here: it drops clients with the default Java
+ * User-Agent, throttles concurrent hits from one IP (a Trending row fires ~12
+ * covers at once), and its HTTP/2 with this client is flaky — hence the
+ * explicit UA, HTTP/1.1, generous timeouts, and the in-memory cache so each
+ * cover hits Gutenberg exactly once per backend run.
  */
 @RestController
 public class CoverProxyController {
 
     private static final Logger log = LoggerFactory.getLogger(CoverProxyController.class);
 
+    private static final String USER_AGENT =
+            "Mozilla/5.0 (compatible; MarginaliaCoverProxy/1.0)";
+    private static final int CACHE_MAX_ENTRIES = 300;
+
+    private record CachedCover(byte[] bytes, String contentType) {}
+
+    private final ConcurrentHashMap<String, CachedCover> cache = new ConcurrentHashMap<>();
+
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
+            .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NORMAL)
+            .version(HttpClient.Version.HTTP_1_1)
             .build();
 
     @GetMapping("/covers")
@@ -46,9 +62,19 @@ public class CoverProxyController {
             return ResponseEntity.badRequest().build();
         }
 
+        final CachedCover cached = cache.get(url);
+        if (cached != null) {
+            return ok(cached);
+        }
+
         try {
             final HttpResponse<byte[]> resp = http.send(
-                    HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build(),
+                    HttpRequest.newBuilder(uri)
+                            .timeout(Duration.ofSeconds(20))
+                            .header("User-Agent", USER_AGENT)
+                            .header("Accept", "image/*")
+                            .GET()
+                            .build(),
                     HttpResponse.BodyHandlers.ofByteArray());
 
             if (resp.statusCode() != 200) {
@@ -59,14 +85,21 @@ public class CoverProxyController {
                     .firstValue("content-type")
                     .orElse(MediaType.IMAGE_JPEG_VALUE);
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType))
-                    .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
-                    .body(resp.body());
+            if (cache.size() >= CACHE_MAX_ENTRIES) cache.clear(); // crude but fine
+            final CachedCover fresh = new CachedCover(resp.body(), contentType);
+            cache.put(url, fresh);
+            return ok(fresh);
         } catch (Exception e) {
-            log.warn("Cover proxy failed for {}", host, e);
+            log.warn("Cover proxy failed for {} ({})", host, e.toString());
             return ResponseEntity.status(502).build();
         }
+    }
+
+    private static ResponseEntity<byte[]> ok(CachedCover cover) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(cover.contentType()))
+                .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
+                .body(cover.bytes());
     }
 
     private static boolean isAllowedHost(String host) {

@@ -172,6 +172,42 @@ public class CatalogService {
         return null;
     }
 
+    /**
+     * Fetches a Gutenberg EPUB server-side for the web build (gutenberg.org
+     * sends no CORS headers, so browsers can't download it directly). Prefers
+     * the lightweight no-images build; validates the ZIP magic so an HTML
+     * interstitial never masquerades as a book. Null when nothing worked.
+     */
+    public byte[] fetchGutenbergEpub(int gutenbergId) {
+        final String[] candidates = {
+                "https://www.gutenberg.org/ebooks/" + gutenbergId + ".epub.noimages",
+                "https://www.gutenberg.org/ebooks/" + gutenbergId + ".epub.images",
+        };
+        final HttpClient redirecting = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+        for (final String url : candidates) {
+            try {
+                final HttpRequest req = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .timeout(Duration.ofSeconds(60))
+                        .GET()
+                        .build();
+                final HttpResponse<byte[]> resp =
+                        redirecting.send(req, HttpResponse.BodyHandlers.ofByteArray());
+                final byte[] body = resp.body();
+                if (resp.statusCode() == 200 && body != null && body.length > 2
+                        && body[0] == 0x50 && body[1] == 0x4B) { // "PK" — a ZIP
+                    return body;
+                }
+            } catch (Exception e) {
+                log.warn("Gutenberg EPUB fetch failed for {} ({})", url, e.getMessage());
+            }
+        }
+        return null;
+    }
+
     // ── Layer 1: Gutenberg index ────────────────────────────────────────────
 
     private List<CatalogVolumeResponse> gutenbergHits(String query, int limit) {

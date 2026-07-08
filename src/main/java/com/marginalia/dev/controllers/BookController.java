@@ -66,4 +66,31 @@ public class BookController {
         PresignedDownload d = bookService.presignDownload(id, me.getUserId());
         return new DownloadUrlResponse(d.url(), d.expiresAt());
     }
+
+    /**
+     * Streams the book file through the backend. The web build needs this:
+     * a browser can't fetch the presigned S3 URL directly (bucket CORS),
+     * but a same-origin request to us can carry the bytes just fine.
+     */
+    @GetMapping("/{id}/file")
+    public ResponseEntity<byte[]> file(@AuthenticationPrincipal CustomUserDetails me,
+                                       @PathVariable UUID id) throws Exception {
+        final PresignedDownload d = bookService.presignDownload(id, me.getUserId());
+        final java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder()
+                .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+                .build();
+        final java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create(d.url()))
+                .timeout(java.time.Duration.ofSeconds(60))
+                .GET()
+                .build();
+        final java.net.http.HttpResponse<byte[]> resp =
+                http.send(req, java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+        if (resp.statusCode() != 200) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/octet-stream")
+                .body(resp.body());
+    }
 }

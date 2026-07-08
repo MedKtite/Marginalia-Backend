@@ -17,7 +17,12 @@ public interface HighlightService {
 
     List<Highlight> listRecent(UUID userId, int limit);
 
-    Highlight updateColor(UUID id, HighlightUpdateRequest req, UUID userId);
+    List<Highlight> listSaved(UUID userId);
+
+    List<Highlight> listByTag(UUID tagId, UUID userId);
+
+    /** Partial update: colorTag and/or isSaved — only non-null fields apply. */
+    Highlight update(UUID id, HighlightUpdateRequest req, UUID userId);
 
     void delete(UUID id, UUID userId);
 }

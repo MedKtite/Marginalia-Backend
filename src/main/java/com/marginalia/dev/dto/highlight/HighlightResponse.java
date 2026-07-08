@@ -20,6 +20,7 @@ public class HighlightResponse {
     private BigDecimal audioStartSec;
     private BigDecimal audioEndSec;
     private String colorTag;
+    private Boolean isSaved;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
     private OffsetDateTime createdAt;
@@ -35,6 +36,7 @@ public class HighlightResponse {
         r.audioStartSec   = h.getAudioStartSec();
         r.audioEndSec     = h.getAudioEndSec();
         r.colorTag        = h.getColorTag();
+        r.isSaved         = h.getIsSaved();
         r.createdAt       = h.getCreatedAt();
         return r;
     }
@@ -57,6 +59,8 @@ public class HighlightResponse {
     public void setAudioEndSec(BigDecimal audioEndSec) { this.audioEndSec = audioEndSec; }
     public String getColorTag() { return colorTag; }
     public void setColorTag(String colorTag) { this.colorTag = colorTag; }
+    public Boolean getIsSaved() { return isSaved; }
+    public void setIsSaved(Boolean isSaved) { this.isSaved = isSaved; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
 }

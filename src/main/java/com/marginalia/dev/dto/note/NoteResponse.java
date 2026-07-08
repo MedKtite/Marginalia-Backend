@@ -14,6 +14,7 @@ public class NoteResponse {
     private UUID bookId;
     private UUID highlightId;
     private String bodyMd;
+    private Boolean isSaved;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
     private OffsetDateTime createdAt;
@@ -27,6 +28,7 @@ public class NoteResponse {
         r.bookId      = n.getBookId();
         r.highlightId = n.getHighlightId();
         r.bodyMd      = n.getBodyMd();
+        r.isSaved     = n.getIsSaved();
         r.createdAt   = n.getCreatedAt();
         r.updatedAt   = n.getUpdatedAt();
         return r;
@@ -40,6 +42,8 @@ public class NoteResponse {
     public void setHighlightId(UUID highlightId) { this.highlightId = highlightId; }
     public String getBodyMd() { return bodyMd; }
     public void setBodyMd(String bodyMd) { this.bodyMd = bodyMd; }
+    public Boolean getIsSaved() { return isSaved; }
+    public void setIsSaved(Boolean isSaved) { this.isSaved = isSaved; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }

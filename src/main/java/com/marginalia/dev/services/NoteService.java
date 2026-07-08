@@ -17,6 +17,11 @@ public interface NoteService {
 
     List<Note> listForHighlight(UUID highlightId, UUID userId);
 
+    List<Note> listRecent(UUID userId, int limit);
+
+    List<Note> listSaved(UUID userId);
+
+    /** Partial update: bodyMd and/or isSaved — only non-null fields apply. */
     Note update(UUID id, NoteUpdateRequest req, UUID userId);
 
     void delete(UUID id, UUID userId);

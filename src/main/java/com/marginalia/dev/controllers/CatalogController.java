@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 
 @RestController
+
+
 
 @RequestMapping("/me/catalog")
 public class CatalogController {
@@ -49,6 +52,17 @@ public class CatalogController {
             }
         }
         return catalogService.search(q, limit);
+    }
+
+    /** EPUB proxy for the web build — gutenberg.org has no CORS headers. */
+    @GetMapping("/gutenberg-epub/{gutenbergId}")
+    public ResponseEntity<byte[]> gutenbergEpub(@PathVariable int gutenbergId) {
+        final byte[] epub = catalogService.fetchGutenbergEpub(gutenbergId);
+        return epub == null
+                ? ResponseEntity.notFound().build()
+                : ResponseEntity.ok()
+                        .header("Content-Type", "application/epub+zip")
+                        .body(epub);
     }
 
     @GetMapping("/lookup")

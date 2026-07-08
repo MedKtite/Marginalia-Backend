@@ -43,6 +43,23 @@ public class HighlightController {
                 .toList();
     }
 
+    /** Highlights the user bookmarked into their Saved collection. */
+    @GetMapping("/saved")
+    public List<HighlightResponse> listSaved(@AuthenticationPrincipal CustomUserDetails me) {
+        return highlightService.listSaved(me.getUserId()).stream()
+                .map(HighlightResponse::from)
+                .toList();
+    }
+
+    /** Every highlight carrying this tag (system or the user's custom). */
+    @GetMapping("/by-tag/{tagId}")
+    public List<HighlightResponse> listForTag(@AuthenticationPrincipal CustomUserDetails me,
+                                              @PathVariable UUID tagId) {
+        return highlightService.listByTag(tagId, me.getUserId()).stream()
+                .map(HighlightResponse::from)
+                .toList();
+    }
+
     @GetMapping("/{id}")
     public HighlightResponse getOne(@AuthenticationPrincipal CustomUserDetails me,
                                     @PathVariable UUID id) {
@@ -60,7 +77,7 @@ public class HighlightController {
     public HighlightResponse update(@AuthenticationPrincipal CustomUserDetails me,
                                     @PathVariable UUID id,
                                     @Valid @RequestBody HighlightUpdateRequest req) {
-        return HighlightResponse.from(highlightService.updateColor(id, req, me.getUserId()));
+        return HighlightResponse.from(highlightService.update(id, req, me.getUserId()));
     }
 
     @DeleteMapping("/{id}")

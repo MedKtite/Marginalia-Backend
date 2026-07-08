@@ -47,6 +47,15 @@ public class TagController {
                 .map(TagResponse::from).toList();
     }
 
+    /**
+     * Highlight count per tag for the calling user, keyed by tag id.
+     * Tags with zero highlights are simply absent.
+     */
+    @GetMapping("/me/tags/counts")
+    public java.util.Map<UUID, Integer> counts(@AuthenticationPrincipal CustomUserDetails me) {
+        return tagDao.countHighlightsByTag(me.getUserId());
+    }
+
     @PostMapping("/me/tags")
     public ResponseEntity<TagResponse> create(@AuthenticationPrincipal CustomUserDetails me,
                                               @Valid @RequestBody TagCreateRequest req) {

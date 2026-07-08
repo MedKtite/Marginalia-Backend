@@ -25,7 +25,21 @@ public final class SecurityConstants {
             "/webhooks/**",      // webhook controllers do their own signature checks
             "/covers",           // public cover-image proxy (Image.network can't send cookies)
             "/actuator/health",
-            "/error"
+            "/error",
+            // Flutter web preview, served from src/main/resources/static so it
+            // shares this origin (first-party cookies — Safari-safe auth).
+            "/",
+            "/index.html",
+            "/flutter.js",
+            "/flutter_bootstrap.js",
+            "/flutter_service_worker.js",
+            "/main.dart.js",
+            "/version.json",
+            "/manifest.json",
+            "/favicon.png",
+            "/assets/**",
+            "/canvaskit/**",
+            "/icons/**"
     };
 
     private SecurityConstants() {}

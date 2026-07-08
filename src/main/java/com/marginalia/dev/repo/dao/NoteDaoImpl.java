@@ -22,7 +22,7 @@ public class NoteDaoImpl implements NoteDao {
             new BeanPropertyRowMapper<>(Note.class);
 
     private static final String COLUMNS = """
-            id, user_id, book_id, highlight_id, body_md, created_at, updated_at
+            id, user_id, book_id, highlight_id, body_md, is_saved, created_at, updated_at
             """;
 
     @Override
@@ -59,6 +59,26 @@ public class NoteDaoImpl implements NoteDao {
     }
 
     @Override
+    public List<Note> findRecentForUser(UUID userId, int limit) {
+        return jdbc.query(
+                "SELECT " + COLUMNS + " FROM notes " +
+                        "WHERE user_id = :uid " +
+                        "ORDER BY created_at DESC LIMIT :lim",
+                new MapSqlParameterSource().addValue("uid", userId).addValue("lim", limit),
+                MAPPER);
+    }
+
+    @Override
+    public List<Note> findSavedForUser(UUID userId) {
+        return jdbc.query(
+                "SELECT " + COLUMNS + " FROM notes " +
+                        "WHERE user_id = :uid AND is_saved = true " +
+                        "ORDER BY updated_at DESC",
+                new MapSqlParameterSource("uid", userId),
+                MAPPER);
+    }
+
+    @Override
     public Note insert(Note n) {
         String sql = """
                 INSERT INTO notes (user_id, book_id, highlight_id, body_md)
@@ -86,6 +106,24 @@ public class NoteDaoImpl implements NoteDao {
                             .addValue("id", id)
                             .addValue("uid", userId)
                             .addValue("body", bodyMd),
+                    MAPPER);
+            return Optional.ofNullable(n);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<Note> patchSaved(UUID id, UUID userId, boolean isSaved) {
+        try {
+            Note n = jdbc.queryForObject(
+                    "UPDATE notes SET is_saved = :saved, updated_at = NOW() " +
+                            "WHERE id = :id AND user_id = :uid " +
+                            "RETURNING " + COLUMNS,
+                    new MapSqlParameterSource()
+                            .addValue("id", id)
+                            .addValue("uid", userId)
+                            .addValue("saved", isSaved),
                     MAPPER);
             return Optional.ofNullable(n);
         } catch (EmptyResultDataAccessException e) {

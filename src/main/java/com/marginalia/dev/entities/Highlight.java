@@ -40,6 +40,9 @@ public class Highlight {
     // ── Styling ──
     private String colorTag; // one of: curious | resonant | beautiful | reference | urgent | disagree | revisit
 
+    /** User bookmarked this highlight into their Saved collection. */
+    private Boolean isSaved;
+
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ssXXX")
     private OffsetDateTime createdAt;
 
@@ -75,6 +78,9 @@ public class Highlight {
 
     public String getColorTag() { return colorTag; }
     public void setColorTag(String colorTag) { this.colorTag = colorTag; }
+
+    public Boolean getIsSaved() { return isSaved; }
+    public void setIsSaved(Boolean isSaved) { this.isSaved = isSaved; }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }

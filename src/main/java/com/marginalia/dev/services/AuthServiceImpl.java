@@ -67,13 +67,13 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public User login(LoginRequest req, HttpServletResponse response) {
         User u = userDao.findByEmail(req.getEmail().trim().toLowerCase())
-                .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
+                .orElseThrow(() -> new UnauthorizedException("Incorrect email or password."));
 
         if (u.getPasswordHash() == null) {
             throw new UnauthorizedException("This account uses social sign-in");
         }
         if (!passwordEncoder.matches(req.getPassword(), u.getPasswordHash())) {
-            throw new UnauthorizedException("Invalid credentials");
+            throw new UnauthorizedException("Incorrect email or password.");
         }
 
         userDao.updateLastSeen(u.getId());

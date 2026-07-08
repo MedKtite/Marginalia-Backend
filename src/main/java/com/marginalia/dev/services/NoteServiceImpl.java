@@ -73,10 +73,29 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
+    public List<Note> listRecent(UUID userId, int limit) {
+        return noteDao.findRecentForUser(userId, Math.min(Math.max(limit, 1), 200));
+    }
+
+    @Override
+    public List<Note> listSaved(UUID userId) {
+        return noteDao.findSavedForUser(userId);
+    }
+
+    @Override
     @Transactional
     public Note update(UUID id, NoteUpdateRequest req, UUID userId) {
-        return noteDao.updateBody(id, userId, req.getBodyMd())
+        Note current = noteDao.findByIdAndUser(id, userId)
                 .orElseThrow(() -> new NotFoundException("Note not found"));
+        if (req.getBodyMd() != null && !req.getBodyMd().isBlank()) {
+            current = noteDao.updateBody(id, userId, req.getBodyMd())
+                    .orElseThrow(() -> new NotFoundException("Note not found"));
+        }
+        if (req.getIsSaved() != null) {
+            current = noteDao.patchSaved(id, userId, req.getIsSaved())
+                    .orElseThrow(() -> new NotFoundException("Note not found"));
+        }
+        return current;
     }
 
     @Override

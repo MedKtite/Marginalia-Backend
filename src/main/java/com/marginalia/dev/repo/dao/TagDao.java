@@ -11,6 +11,9 @@ public interface TagDao {
     /** All system tags, in insertion order. */
     List<Tag> findSystemTags();
 
+    /** The system tag with this name (case-insensitive), if seeded. */
+    Optional<Tag> findSystemByName(String name);
+
     /** Both system and the user's custom tags. */
     List<Tag> findVisibleForUser(UUID userId);
 
@@ -38,4 +41,7 @@ public interface TagDao {
 
     /** Tags currently attached to this highlight, in stable insertion order. */
     List<Tag> findByHighlight(UUID highlightId);
+
+    /** highlight count per tag for this user's highlights (absent = zero). */
+    java.util.Map<UUID, Integer> countHighlightsByTag(UUID userId);
 }

@@ -22,6 +22,23 @@ public class NoteController {
     @Autowired
     private NoteService noteService;
 
+    /** The user's most-recent notes across all books, newest first. */
+    @GetMapping
+    public List<NoteResponse> listRecent(@AuthenticationPrincipal CustomUserDetails me,
+                                         @RequestParam(defaultValue = "100") int limit) {
+        return noteService.listRecent(me.getUserId(), limit).stream()
+                .map(NoteResponse::from)
+                .toList();
+    }
+
+    /** Notes the user bookmarked into their Saved collection. */
+    @GetMapping("/saved")
+    public List<NoteResponse> listSaved(@AuthenticationPrincipal CustomUserDetails me) {
+        return noteService.listSaved(me.getUserId()).stream()
+                .map(NoteResponse::from)
+                .toList();
+    }
+
     @GetMapping("/by-book/{bookId}")
     public List<NoteResponse> listForBook(@AuthenticationPrincipal CustomUserDetails me,
                                           @PathVariable UUID bookId) {
