@@ -1,11 +1,15 @@
 package com.marginalia.dev.services;
 
+import com.marginalia.dev.dto.auth.ForgotPasswordRequest;
 import com.marginalia.dev.dto.auth.LoginRequest;
 import com.marginalia.dev.dto.auth.OAuthLoginRequest;
 import com.marginalia.dev.dto.auth.RegisterRequest;
+import com.marginalia.dev.dto.auth.ResetPasswordRequest;
 import com.marginalia.dev.entities.User;
+import com.marginalia.dev.exceptions.BadRequestException;
 import com.marginalia.dev.exceptions.ConflictException;
 import com.marginalia.dev.exceptions.UnauthorizedException;
+import com.marginalia.dev.repo.dao.PasswordResetTokenDao;
 import com.marginalia.dev.repo.dao.UserDao;
 import com.marginalia.dev.security.JwtService;
 import com.marginalia.dev.security.SecurityConstants;
@@ -16,15 +20,30 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.OffsetDateTime;
+import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     @Autowired
     private UserDao userDao;
+
+    @Autowired
+    private PasswordResetTokenDao passwordResetTokenDao;
+
+    @Autowired
+    private PasswordResetEmailService passwordResetEmailService;
 
     @Autowired
     private JwtService jwtService;
@@ -178,6 +197,36 @@ public class AuthServiceImpl implements AuthService {
         clearCookie(response, SecurityConstants.REFRESH_TOKEN_COOKIE);
     }
 
+    @Override
+    public void requestPasswordReset(ForgotPasswordRequest req) {
+        String email = req.getEmail().trim().toLowerCase();
+        Optional<User> found = userDao.findByEmail(email);
+
+        // Always return the same response so this endpoint cannot be used to
+        // enumerate accounts or discover their authentication method.
+        if (found.isEmpty() || found.get().getPasswordHash() == null) {
+            return;
+        }
+
+        byte[] bytes = new byte[32];
+        SECURE_RANDOM.nextBytes(bytes);
+        String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        passwordResetTokenDao.replaceForUser(
+                found.get().getId(),
+                sha256(rawToken),
+                OffsetDateTime.now().plusMinutes(30));
+        passwordResetEmailService.send(email, rawToken);
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest req) {
+        UUID userId = passwordResetTokenDao.consume(sha256(req.getToken()))
+                .orElseThrow(() -> new BadRequestException(
+                        "This recovery link is invalid or has expired."));
+        userDao.updatePassword(userId, passwordEncoder.encode(req.getPassword()));
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // Cookie helpers
     // ─────────────────────────────────────────────────────────────────────
@@ -218,5 +267,15 @@ public class AuthServiceImpl implements AuthService {
             }
         }
         return null;
+    }
+
+    private static String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 }

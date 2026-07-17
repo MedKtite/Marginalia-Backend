@@ -64,6 +64,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         sub.setStore(mapStore(ev.getStore()));
         sub.setCurrentPeriodStart(toOffsetDateTime(ev.getPurchasedAtMs()));
         sub.setCurrentPeriodEnd(toOffsetDateTime(ev.getExpirationAtMs()));
+        if ("TRIAL".equalsIgnoreCase(ev.getPeriodType())) {
+            sub.setTrialEnd(toOffsetDateTime(ev.getExpirationAtMs()));
+        }
 
         String t = ev.getType() == null ? "" : ev.getType().toUpperCase();
         switch (t) {

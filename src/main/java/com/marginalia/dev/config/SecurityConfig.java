@@ -33,6 +33,11 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // Flutter web hosts the EPUB reader in an iframe served by
+                // this same backend origin. Keep cross-origin framing blocked
+                // while allowing that first-party reader frame.
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.sameOrigin()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers(SecurityConstants.AUTH_WHITELIST).permitAll()

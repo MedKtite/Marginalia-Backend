@@ -1,8 +1,10 @@
 package com.marginalia.dev.controllers;
 
+import com.marginalia.dev.dto.auth.ForgotPasswordRequest;
 import com.marginalia.dev.dto.auth.LoginRequest;
 import com.marginalia.dev.dto.auth.OAuthLoginRequest;
 import com.marginalia.dev.dto.auth.RegisterRequest;
+import com.marginalia.dev.dto.auth.ResetPasswordRequest;
 import com.marginalia.dev.dto.auth.UserResponse;
 import com.marginalia.dev.entities.User;
 import com.marginalia.dev.services.AuthService;
@@ -62,6 +64,18 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
         authService.logout(response);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/password/forgot")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
+        authService.requestPasswordReset(req);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/password/reset")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+        authService.resetPassword(req);
         return ResponseEntity.noContent().build();
     }
 }

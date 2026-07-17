@@ -44,7 +44,8 @@ public class SubscriptionDaoImpl implements SubscriptionDao {
                 .map(s -> "pro".equals(s.getTier())
                         && (s.getStatus() == null
                             || "active".equals(s.getStatus())
-                            || "in_grace_period".equals(s.getStatus())))
+                            || "in_grace_period".equals(s.getStatus())
+                            || "billing_retry".equals(s.getStatus())))
                 .orElse(false);
     }
 

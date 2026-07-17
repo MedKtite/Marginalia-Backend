@@ -16,4 +16,6 @@ public interface UserDao {
     User insert(User user);
 
     void updateLastSeen(UUID userId);
+
+    void updatePassword(UUID userId, String passwordHash);
 }

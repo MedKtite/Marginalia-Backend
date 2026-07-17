@@ -47,6 +47,10 @@ public class RevenueCatWebhookPayload {
         /** PRODUCTION | SANDBOX */
         private String environment;
 
+        /** TRIAL | INTRO | NORMAL. */
+        @JsonProperty("period_type")
+        private String periodType;
+
         @JsonProperty("purchased_at_ms")
         private Long purchasedAtMs;
 
@@ -73,6 +77,9 @@ public class RevenueCatWebhookPayload {
 
         public String getEnvironment() { return environment; }
         public void setEnvironment(String environment) { this.environment = environment; }
+
+        public String getPeriodType() { return periodType; }
+        public void setPeriodType(String periodType) { this.periodType = periodType; }
 
         public Long getPurchasedAtMs() { return purchasedAtMs; }
         public void setPurchasedAtMs(Long purchasedAtMs) { this.purchasedAtMs = purchasedAtMs; }

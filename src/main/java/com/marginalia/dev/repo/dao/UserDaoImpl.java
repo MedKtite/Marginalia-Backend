@@ -101,4 +101,18 @@ public class UserDaoImpl implements UserDao {
                         .addValue("now", OffsetDateTime.now())
                         .addValue("id", userId));
     }
+
+    @Override
+    public void updatePassword(UUID userId, String passwordHash) {
+        jdbc.update(
+                """
+                UPDATE users
+                SET password_hash = :passwordHash, updated_at = :now
+                WHERE id = :id
+                """,
+                new MapSqlParameterSource()
+                        .addValue("passwordHash", passwordHash)
+                        .addValue("now", OffsetDateTime.now())
+                        .addValue("id", userId));
+    }
 }

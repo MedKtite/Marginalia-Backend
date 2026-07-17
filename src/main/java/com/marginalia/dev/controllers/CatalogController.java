@@ -3,6 +3,7 @@ package com.marginalia.dev.controllers;
 import com.marginalia.dev.dto.catalog.BookRequestCreateRequest;
 import com.marginalia.dev.dto.catalog.CatalogSearchResponse;
 import com.marginalia.dev.dto.catalog.CatalogVolumeResponse;
+import com.marginalia.dev.dto.catalog.LibrivoxBookResponse;
 import com.marginalia.dev.repo.dao.BookRequestDao;
 import com.marginalia.dev.repo.dao.SearchQueryDao;
 import com.marginalia.dev.security.CustomUserDetails;
@@ -71,6 +72,15 @@ public class CatalogController {
             @RequestParam(required = false) String author) {
         final CatalogVolumeResponse v = catalogService.lookup(title, author);
         return v == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(v);
+    }
+
+    /** Free LibriVox audiobook for a title/author — 204 when none exists. */
+    @GetMapping("/librivox")
+    public ResponseEntity<LibrivoxBookResponse> librivox(
+            @RequestParam String title,
+            @RequestParam(required = false) String author) {
+        final LibrivoxBookResponse b = catalogService.librivoxLookup(title, author);
+        return b == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(b);
     }
 
     @GetMapping("/recommendations")

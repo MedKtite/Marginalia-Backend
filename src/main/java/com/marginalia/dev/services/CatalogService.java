@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marginalia.dev.dto.catalog.CatalogSearchResponse;
 import com.marginalia.dev.dto.catalog.CatalogVolumeResponse;
+import com.marginalia.dev.dto.catalog.LibrivoxBookResponse;
 import com.marginalia.dev.repo.dao.GutenbergCatalogDao;
 import com.marginalia.dev.repo.dao.SearchQueryDao;
 import org.slf4j.Logger;
@@ -206,6 +207,123 @@ public class CatalogService {
             }
         }
         return null;
+    }
+
+    // ── LibriVox: free public-domain audiobooks ─────────────────────────────
+
+    private record CachedLibrivox(LibrivoxBookResponse book, Instant fetchedAt) {
+        boolean fresh() { return fetchedAt.isAfter(Instant.now().minus(CACHE_TTL)); }
+    }
+
+    /** Caches misses too (book == null) — retrying LibriVox hourly is pointless. */
+    private final ConcurrentHashMap<String, CachedLibrivox> librivoxCache =
+            new ConcurrentHashMap<>();
+
+    /**
+     * Best LibriVox recording for a title/author — free, legal audio for
+     * public-domain books (the audio sibling of the Gutenberg reading flow).
+     * Sections are chapter MP3s on the Internet Archive. Null when nothing
+     * matches (most in-copyright titles).
+     */
+    public LibrivoxBookResponse librivoxLookup(String title, String author) {
+        if (title == null || title.isBlank()) return null;
+        final String key = TextNormalizer.normalize(title) + "|"
+                + TextNormalizer.tokenKey(author);
+        final CachedLibrivox cached = librivoxCache.get(key);
+        if (cached != null && cached.fresh()) return cached.book();
+
+        try {
+            final LibrivoxBookResponse found = fetchLibrivox(title.trim(), author);
+            // Cache completed lookups only — a genuine "no recording" is worth
+            // remembering for 24h, but a timeout must NOT poison the cache.
+            if (librivoxCache.size() >= CACHE_MAX_ENTRIES) librivoxCache.clear();
+            librivoxCache.put(key, new CachedLibrivox(found, Instant.now()));
+            return found;
+        } catch (Exception e) {
+            log.warn("LibriVox lookup failed for '{}' ({})", title, e.getMessage());
+            return null;
+        }
+    }
+
+    private LibrivoxBookResponse fetchLibrivox(String title, String author) throws Exception {
+        // extended=1 responses are heavy and librivox.org is slow (~7s for
+        // popular titles) — small limit, generous timeout, and results are
+        // cached for 24h so users only ever pay this once per title.
+        final String url = "https://librivox.org/api/feed/audiobooks"
+                + "?format=json&extended=1&limit=5&title="
+                + URLEncoder.encode(title, StandardCharsets.UTF_8);
+        final HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(20))
+                .header("User-Agent", "Marginalia/0.1")
+                .GET()
+                .build();
+        final HttpResponse<String> resp =
+                http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) return null;
+
+        final JsonNode books = mapper.readTree(resp.body()).path("books");
+        if (!books.isArray()) return null; // {"error": "..."} on no match
+
+        for (final JsonNode b : books) {
+            final String bookAuthors = joinLibrivoxAuthors(b.path("authors"));
+            // Title search is fuzzy — require an author-token overlap when we
+            // know the author, or a wrong edition sneaks in.
+            if (author != null && !author.isBlank()
+                    && !TextNormalizer.authorsOverlap(author, bookAuthors)) {
+                continue;
+            }
+            final LibrivoxBookResponse out = mapLibrivox(b, bookAuthors);
+            if (!out.getSections().isEmpty()) return out;
+        }
+        return null;
+    }
+
+    private static LibrivoxBookResponse mapLibrivox(JsonNode b, String authors) {
+        final LibrivoxBookResponse out = new LibrivoxBookResponse();
+        out.setLibrivoxId(b.path("id").asLong());
+        out.setTitle(textOrNull(b.path("title")));
+        out.setAuthor(authors == null || authors.isBlank() ? null : authors);
+        final int total = b.path("totaltimesecs").asInt(0);
+        out.setTotalTimeSecs(total > 0 ? total : null);
+        for (final JsonNode s : b.path("sections")) {
+            final String listen = textOrNull(s.path("listen_url"));
+            if (listen == null || listen.isBlank()) continue;
+            final LibrivoxBookResponse.Section sec = new LibrivoxBookResponse.Section();
+            // Archive.org serves both; https avoids cleartext-traffic blocks.
+            sec.setListenUrl(listen.replaceFirst("^http://", "https://"));
+            sec.setTitle(textOrNull(s.path("title")));
+            sec.setPlaytimeSecs(parsePlaytime(textOrNull(s.path("playtime"))));
+            out.getSections().add(sec);
+        }
+        return out;
+    }
+
+    /** LibriVox playtime is usually plain seconds ("1030"), sometimes "H:MM:SS". */
+    private static Integer parsePlaytime(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            if (!raw.contains(":")) return Integer.parseInt(raw.trim());
+            int total = 0;
+            for (final String part : raw.trim().split(":")) {
+                total = total * 60 + Integer.parseInt(part);
+            }
+            return total;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static String joinLibrivoxAuthors(JsonNode authors) {
+        final StringBuilder sb = new StringBuilder();
+        for (final JsonNode a : authors) {
+            final String name = ((a.path("first_name").asText("") + " "
+                    + a.path("last_name").asText("")).trim());
+            if (name.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(name);
+        }
+        return sb.toString();
     }
 
     // ── Layer 1: Gutenberg index ────────────────────────────────────────────
