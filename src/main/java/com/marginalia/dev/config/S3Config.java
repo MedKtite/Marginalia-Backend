@@ -37,6 +37,10 @@ public class S3Config {
     @Value("${s3.endpoint:}")
     private String endpoint;
 
+    /** Endpoint reachable by the backend process for HEAD/GET/DELETE calls. */
+    @Value("${s3.internal-endpoint:${s3.endpoint:}}")
+    private String internalEndpoint;
+
     @Value("${s3.region:us-east-1}")
     private String region;
 
@@ -57,7 +61,7 @@ public class S3Config {
         S3Client client = S3Client.builder()
                 .region(Region.of(region))
                 .credentialsProvider(credentials())
-                .endpointOverride(endpointUri())
+                .endpointOverride(endpointUri(internalEndpoint))
                 .serviceConfiguration(S3Configuration.builder()
                         .pathStyleAccessEnabled(forcePathStyle)
                         .build())
@@ -72,7 +76,7 @@ public class S3Config {
         return S3Presigner.builder()
                 .region(Region.of(region))
                 .credentialsProvider(credentials())
-                .endpointOverride(endpointUri())
+                .endpointOverride(endpointUri(endpoint))
                 .serviceConfiguration(S3Configuration.builder()
                         .pathStyleAccessEnabled(forcePathStyle)
                         .build())
@@ -89,8 +93,8 @@ public class S3Config {
         return DefaultCredentialsProvider.create();
     }
 
-    private URI endpointUri() {
-        return endpoint == null || endpoint.isBlank() ? null : URI.create(endpoint);
+    private URI endpointUri(String value) {
+        return value == null || value.isBlank() ? null : URI.create(value);
     }
 
     /** Idempotent — creates the bucket once on first startup against a fresh MinIO. */

@@ -21,6 +21,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -113,18 +115,25 @@ public class CatalogService {
      * "Recommended for you" — books surfaced from the user's own recent catalog
      * searches. Each recent distinct query is re-run against the (24h-cached)
      * Google layer, results are deduped across queries and marked FULL when the
-     * Gutenberg index has the title. Empty history → empty list (client hides
-     * the section). Interleaved by query so one keyword can't monopolize.
+     * Gutenberg index has the title. Empty history falls back to broad starter
+     * interests selected from the request locale. Interleaved by query so one
+     * keyword can't monopolize.
      */
-    public List<CatalogVolumeResponse> recommendations(UUID userId, int max) {
+    public List<CatalogVolumeResponse> recommendations(UUID userId, int max, String acceptLanguage) {
         final List<String> recent = searchQueryDao.recentDistinct(userId, 5);
-        if (recent.isEmpty()) return List.of();
+        final List<String> seeds = recent.isEmpty()
+                ? starterQueries(userId, acceptLanguage)
+                : recent;
 
         // Fetch a few candidates per keyword, tolerating individual failures.
         final List<List<CatalogVolumeResponse>> perQuery = new ArrayList<>();
-        for (final String q : recent) {
+        for (final String q : seeds) {
             try {
-                perQuery.add(googleHits(q, 8));
+                List<CatalogVolumeResponse> hits = googleHits(q, 8);
+                if (hits.isEmpty() && recent.isEmpty()) {
+                    hits = gutenbergHits(q, 8);
+                }
+                perQuery.add(hits);
             } catch (Exception e) {
                 log.warn("Recommendation lookup failed for '{}' ({})", q, e.getMessage());
             }
@@ -147,6 +156,31 @@ public class CatalogService {
             if (!any) break;
         }
         return out;
+    }
+
+    private List<String> starterQueries(UUID userId, String acceptLanguage) {
+        final List<String> pool = starterPool(acceptLanguage);
+        final int daySeed = LocalDate.now(ZoneOffset.UTC).getDayOfYear();
+        final int start = Math.floorMod(userId.hashCode() + daySeed, pool.size());
+        final List<String> out = new ArrayList<>();
+        for (int i = 0; i < Math.min(5, pool.size()); i++) {
+            out.add(pool.get((start + i) % pool.size()));
+        }
+        return out;
+    }
+
+    private static List<String> starterPool(String acceptLanguage) {
+        final String lang = acceptLanguage == null ? "" : acceptLanguage.toLowerCase();
+        if (lang.startsWith("fr")) {
+            return List.of("french literature", "philosophy", "classics", "poetry", "history", "essays");
+        }
+        if (lang.startsWith("ar")) {
+            return List.of("arabic literature", "philosophy", "poetry", "history", "classics", "biography");
+        }
+        if (lang.startsWith("es")) {
+            return List.of("spanish literature", "magical realism", "classics", "history", "poetry", "fiction");
+        }
+        return List.of("classics", "fiction", "self help", "history", "biography", "philosophy", "poetry");
     }
 
     /**

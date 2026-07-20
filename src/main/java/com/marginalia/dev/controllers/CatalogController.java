@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 
@@ -86,9 +87,11 @@ public class CatalogController {
     @GetMapping("/recommendations")
     public List<CatalogVolumeResponse> recommendations(
             @AuthenticationPrincipal CustomUserDetails me,
+            @RequestHeader(value = "Accept-Language", required = false) String acceptLanguage,
             @RequestParam(defaultValue = "12") int limit) {
         return catalogService.recommendations(me.getUserId(),
-                Math.min(Math.max(limit, 1), 24));
+                Math.min(Math.max(limit, 1), 24),
+                acceptLanguage);
     }
 
     @PostMapping("/requests")
