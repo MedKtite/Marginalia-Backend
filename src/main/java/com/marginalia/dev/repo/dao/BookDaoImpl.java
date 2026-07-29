@@ -13,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.marginalia.dev.services.metadata.MetadataResult;
 
 @Repository
 public class BookDaoImpl implements BookDao {
@@ -26,6 +27,7 @@ public class BookDaoImpl implements BookDao {
             id, user_id, title, author, narrator, publisher, published_year,
             isbn_13 AS isbn13, google_id, page_count, duration_sec, language,
             format, file_key, file_size_bytes, cover_url, cover_dominant_color,
+            processing_status, processing_error, reading_file_key, processing_version, description,
             status, progress_pct, cursor::text AS cursor,
             last_opened_at, finished_at, created_at, updated_at
             """;
@@ -72,12 +74,12 @@ public class BookDaoImpl implements BookDao {
                     user_id, title, author, narrator, publisher, published_year,
                     isbn_13, google_id, page_count, duration_sec, language,
                     format, file_key, file_size_bytes, cover_url, cover_dominant_color,
-                    status, progress_pct, cursor, last_opened_at
+                    processing_status, status, progress_pct, cursor, last_opened_at
                 ) VALUES (
                     :userId, :title, :author, :narrator, :publisher, :publishedYear,
                     :isbn13, :googleId, :pageCount, :durationSec, :language,
                     :format, :fileKey, :fileSizeBytes, :coverUrl, :coverDominantColor,
-                    :status, :progressPct, CAST(:cursor AS jsonb), :lastOpenedAt
+                    COALESCE(:processingStatus, 'ready'), :status, :progressPct, CAST(:cursor AS jsonb), :lastOpenedAt
                 )
                 RETURNING %s
                 """.formatted(COLUMNS);
@@ -99,6 +101,7 @@ public class BookDaoImpl implements BookDao {
                 .addValue("fileSizeBytes",      b.getFileSizeBytes())
                 .addValue("coverUrl",           b.getCoverUrl())
                 .addValue("coverDominantColor", b.getCoverDominantColor())
+                .addValue("processingStatus",  b.getProcessingStatus())
                 .addValue("status",             b.getStatus() != null ? b.getStatus() : "reading")
                 .addValue("progressPct",        b.getProgressPct())
                 .addValue("cursor",             b.getCursor())
@@ -144,6 +147,14 @@ public class BookDaoImpl implements BookDao {
         } catch (EmptyResultDataAccessException e) {
             return Optional.empty();
         }
+    }
+
+    @Override
+    public Optional<Book> patchMetadata(UUID id, UUID userId, MetadataResult m) {
+        String sql = "UPDATE books SET isbn_13=COALESCE(NULLIF(isbn_13,''),:isbn), title=COALESCE(NULLIF(title,''),:title), author=COALESCE(NULLIF(author,''),:author), publisher=COALESCE(NULLIF(publisher,''),:publisher), published_year=COALESCE(published_year,:year), page_count=COALESCE(page_count,:pages), description=COALESCE(NULLIF(description,''),:description), cover_url=COALESCE(NULLIF(cover_url,''),:cover), updated_at=NOW() WHERE id=:id AND user_id=:uid RETURNING " + COLUMNS;
+        String author = m.authors() == null || m.authors().isEmpty() ? null : String.join(", ", m.authors());
+        MapSqlParameterSource p = new MapSqlParameterSource().addValue("id",id).addValue("uid",userId).addValue("isbn",m.isbn13()).addValue("title",m.title()).addValue("author",author).addValue("publisher",m.publisher()).addValue("year",m.publishedYear()).addValue("pages",m.pageCount()).addValue("description",m.description()).addValue("cover",m.coverUrl());
+        try { return Optional.ofNullable(jdbc.queryForObject(sql,p,MAPPER)); } catch (EmptyResultDataAccessException e) { return Optional.empty(); }
     }
 
     @Override

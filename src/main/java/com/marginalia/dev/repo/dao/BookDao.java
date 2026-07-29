@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.marginalia.dev.services.metadata.MetadataResult;
 
 public interface BookDao {
 
@@ -17,6 +18,8 @@ public interface BookDao {
     int countByUser(UUID userId);
 
     Book insert(Book book);
+
+    Optional<Book> patchMetadata(UUID id, UUID userId, MetadataResult metadata);
 
     /**
      * Partial update — any null argument keeps the existing column value.

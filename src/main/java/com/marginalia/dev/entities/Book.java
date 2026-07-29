@@ -55,6 +55,13 @@ public class Book {
 
     private String coverDominantColor;
 
+    // Document-ingestion state and derived reader artifact.
+    private String processingStatus;
+    private String processingError;
+    private String readingFileKey;
+    private String processingVersion;
+    private String description;
+
     // ── Reading state ──
     private String status;            // 'reading' | 'listening' | 'finished' | 'archived'
 
@@ -124,6 +131,17 @@ public class Book {
 
     public String getCoverDominantColor() { return coverDominantColor; }
     public void setCoverDominantColor(String coverDominantColor) { this.coverDominantColor = coverDominantColor; }
+
+    public String getProcessingStatus() { return processingStatus; }
+    public void setProcessingStatus(String processingStatus) { this.processingStatus = processingStatus; }
+    public String getProcessingError() { return processingError; }
+    public void setProcessingError(String processingError) { this.processingError = processingError; }
+    public String getReadingFileKey() { return readingFileKey; }
+    public void setReadingFileKey(String readingFileKey) { this.readingFileKey = readingFileKey; }
+    public String getProcessingVersion() { return processingVersion; }
+    public void setProcessingVersion(String processingVersion) { this.processingVersion = processingVersion; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

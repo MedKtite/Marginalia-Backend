@@ -25,6 +25,11 @@ public class BookResponse {
     private String format;
     private String coverUrl;
     private String coverDominantColor;
+    private String processingStatus;
+    private String processingError;
+    private String readingFileKey;
+    private String processingVersion;
+    private String description;
     private String status;
     private BigDecimal progressPct;
     private String cursor;
@@ -57,6 +62,11 @@ public class BookResponse {
         r.format              = b.getFormat();
         r.coverUrl            = b.getCoverUrl();
         r.coverDominantColor  = b.getCoverDominantColor();
+        r.processingStatus    = b.getProcessingStatus();
+        r.processingError     = b.getProcessingError();
+        r.readingFileKey      = b.getReadingFileKey();
+        r.processingVersion   = b.getProcessingVersion();
+        r.description         = b.getDescription();
         r.status              = b.getStatus();
         r.progressPct         = b.getProgressPct();
         r.cursor              = b.getCursor();

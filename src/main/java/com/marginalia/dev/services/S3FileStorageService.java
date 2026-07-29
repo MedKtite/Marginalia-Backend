@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -98,6 +99,25 @@ public class S3FileStorageService implements FileStorageService {
             log.warn("HEAD {} failed: {}", fileKey, e.getMessage());
             return Optional.empty();
         }
+    }
+
+    @Override
+    public byte[] readObject(String fileKey) {
+        return s3.getObjectAsBytes(GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(fileKey)
+                .build()).asByteArray();
+    }
+
+    @Override
+    public void putObject(String fileKey, byte[] bytes, String contentType) {
+        s3.putObject(PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(fileKey)
+                        .contentType(contentType)
+                        .contentLength((long) bytes.length)
+                        .build(),
+                RequestBody.fromBytes(bytes));
     }
 
     @Override

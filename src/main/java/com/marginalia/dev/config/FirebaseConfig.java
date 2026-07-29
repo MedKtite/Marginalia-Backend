@@ -14,19 +14,6 @@ import org.springframework.context.annotation.Configuration;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-/**
- * Firebase wiring is conditional on {@code firebase.service-account-path}
- * being a non-blank string. When unset (typical in dev), this entire
- * configuration is skipped — no FirebaseApp / FirebaseMessaging beans are
- * created, and {@link com.marginalia.dev.services.FcmNotificationSender}
- * (which autowires FirebaseMessaging with {@code required = false}) falls
- * back to DRY-RUN logging.
- *
- * In prod, set the env var to the absolute path of your service-account
- * JSON. A bad path causes a loud, fatal startup error — better than
- * silently swallowing the misconfig and discovering it three days later
- * when push delivery numbers are zero.
- */
 @Configuration
 @ConditionalOnExpression("'${firebase.service-account-path:}' != ''")
 public class FirebaseConfig {

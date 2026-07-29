@@ -7,7 +7,9 @@ import com.marginalia.dev.exceptions.BadRequestException;
 import com.marginalia.dev.exceptions.ForbiddenException;
 import com.marginalia.dev.exceptions.NotFoundException;
 import com.marginalia.dev.repo.dao.BookDao;
+import com.marginalia.dev.repo.dao.IngestionJobDao;
 import com.marginalia.dev.repo.dao.SubscriptionDao;
+import com.marginalia.dev.services.metadata.MetadataResolver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,11 +28,18 @@ public class BookServiceImpl implements BookService {
     private BookDao bookDao;
 
     @Autowired
+    private IngestionJobDao ingestionJobDao;
+
+    @Autowired
     private SubscriptionDao subscriptionDao;
+
+    @Autowired
+    private MetadataResolver metadataResolver;
 
     /** Null when S3 isn't configured — in that case file_key is just stored as-is, no verify. */
     @Autowired(required = false)
     private FileStorageService storage;
+
 
     @Override
     public List<Book> listForUser(UUID userId, String status) {
@@ -46,7 +55,7 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional
     public Book create(BookCreateRequest req, UUID userId) {
-        // Free-tier limit check.
+        //! Free-tier limit check.
         if (!subscriptionDao.isPro(userId)) {
             int count = bookDao.countByUser(userId);
             if (count >= FREE_TIER_BOOK_LIMIT) {
@@ -98,7 +107,15 @@ public class BookServiceImpl implements BookService {
                     + "Call POST /me/uploads/presign first.");
         }
 
-        return bookDao.insert(b);
+        boolean needsDocumentProcessing = b.getFileKey() != null
+                && ("pdf".equals(b.getFormat()) || "epub".equals(b.getFormat()));
+        if (needsDocumentProcessing) b.setProcessingStatus("pending");
+        Book created = bookDao.insert(b);
+        if (needsDocumentProcessing) {
+            ingestionJobDao.insert(created.getId(), "UPLOAD_DOCUMENT", created.getFileKey(),
+                    java.util.Map.of("format", created.getFormat()));
+        }
+        return metadataResolver.enrich(created);
     }
 
     @Override
@@ -131,6 +148,9 @@ public class BookServiceImpl implements BookService {
         // hiccup doesn't roll back the row deletion the user already saw succeed.
         if (storage != null && existing.getFileKey() != null && !existing.getFileKey().isBlank()) {
             storage.deleteObject(existing.getFileKey());
+            if (existing.getReadingFileKey() != null && !existing.getReadingFileKey().isBlank()) {
+                storage.deleteObject(existing.getReadingFileKey());
+            }
         }
     }
 
@@ -145,6 +165,21 @@ public class BookServiceImpl implements BookService {
             throw new BadRequestException("File storage is not configured on this server.");
         }
         return storage.presignDownload(b.getFileKey());
+    }
+
+    @Override
+    public BookService.ReadingDownload presignReadingDownload(UUID bookId, UUID userId) {
+        Book b = bookDao.findByIdAndUser(bookId, userId)
+                .orElseThrow(() -> new NotFoundException("Book not found"));
+        if (b.getFileKey() == null || b.getFileKey().isBlank() || storage == null) {
+            throw new NotFoundException("This book has no readable file.");
+        }
+        if (b.getReadingFileKey() != null && !b.getReadingFileKey().isBlank()
+                && storage.headObject(b.getReadingFileKey()).isPresent()) {
+            return new BookService.ReadingDownload(
+                    storage.presignDownload(b.getReadingFileKey()), b.getReadingFileKey().endsWith("reader-v1.zip") ? "reader-v1" : "epub");
+        }
+        return new BookService.ReadingDownload(storage.presignDownload(b.getFileKey()), b.getFormat());
     }
 
     private String defaultStatusFor(String format) {

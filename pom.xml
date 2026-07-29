@@ -113,6 +113,13 @@
             <artifactId>s3</artifactId>
         </dependency>
 
+        <!-- Text extraction for reflowable reading copies of uploaded PDFs. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.5</version>
+        </dependency>
+
         <!-- ── Dev / tooling ── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

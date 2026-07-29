@@ -26,4 +26,9 @@ public interface BookService {
      * to the user, or has no file (e.g. physical books).
      */
     PresignedDownload presignDownload(UUID bookId, UUID userId);
+
+    /** Prefer a derived reflowable EPUB when one exists. */
+    ReadingDownload presignReadingDownload(UUID bookId, UUID userId);
+
+    record ReadingDownload(PresignedDownload download, String format) {}
 }

@@ -7,6 +7,8 @@ import com.marginalia.dev.dto.catalog.CatalogVolumeResponse;
 import com.marginalia.dev.dto.catalog.LibrivoxBookResponse;
 import com.marginalia.dev.repo.dao.GutenbergCatalogDao;
 import com.marginalia.dev.repo.dao.SearchQueryDao;
+import com.marginalia.dev.services.metadata.MetadataResolver;
+import com.marginalia.dev.services.metadata.MetadataResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +54,8 @@ public class CatalogService {
     private static final Logger log = LoggerFactory.getLogger(CatalogService.class);
 
     private static final Duration GOOGLE_TIMEOUT = Duration.ofSeconds(3);
+    private static final int GOOGLE_MAX_ATTEMPTS = 3;
+    private static final Duration GOOGLE_OUTAGE_COOLDOWN = Duration.ofSeconds(30);
     private static final Duration CACHE_TTL = Duration.ofHours(24);
     private static final int CACHE_MAX_ENTRIES = 500;
     private static final int GUTENBERG_MAX = 10;
@@ -65,6 +69,9 @@ public class CatalogService {
     @Autowired
     private SearchQueryDao searchQueryDao;
 
+    @Autowired
+    private MetadataResolver metadataResolver;
+
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(2))
             .build();
@@ -76,6 +83,7 @@ public class CatalogService {
     }
 
     private final ConcurrentHashMap<String, CachedGoogle> googleCache = new ConcurrentHashMap<>();
+    private volatile Instant googleUnavailableUntil = Instant.MIN;
 
     public CatalogSearchResponse search(String q, int limit) {
         if (q == null || q.isBlank()) {
@@ -183,28 +191,35 @@ public class CatalogService {
         return List.of("classics", "fiction", "self help", "history", "biography", "philosophy", "poetry");
     }
 
-    /**
-     * Best-matching Google edition for a title/author — powers the Pages/Year
-     * (and rating fallback) KPIs for Gutenberg books, which carry neither.
-     * Runs through the same 24h-cached Google layer; null when nothing matches.
-     */
+    /** Resolves catalog details through the shared metadata provider chain. */
     public CatalogVolumeResponse lookup(String title, String author) {
         if (title == null || title.isBlank()) return null;
-        final String strict = "intitle:\"" + title.trim() + "\""
-                + (author == null || author.isBlank() ? "" : " inauthor:\"" + author.trim() + "\"");
-        final String loose = (title + " " + (author == null ? "" : author)).trim();
-        for (final String q : new String[]{strict, loose}) {
-            try {
-                final List<CatalogVolumeResponse> hits = googleHits(q, 5);
-                for (final CatalogVolumeResponse v : hits) {
-                    if (v.getPageCount() != null) return v;
-                }
-                if (!hits.isEmpty()) return hits.get(0);
-            } catch (Exception e) {
-                log.warn("Edition lookup failed for '{}' ({})", q, e.getMessage());
-            }
-        }
-        return null;
+        return metadataResolver.resolve(null, title.trim(), author)
+                .map(this::fromMetadata)
+                .orElse(null);
+    }
+
+    private CatalogVolumeResponse fromMetadata(MetadataResult metadata) {
+        final CatalogVolumeResponse out = new CatalogVolumeResponse();
+        out.setSource(switch (metadata.source()) {
+            case "google_books" -> CatalogVolumeResponse.SOURCE_GOOGLE;
+            case "open_library" -> CatalogVolumeResponse.SOURCE_OPEN_LIBRARY;
+            case "gutendex" -> "GUTENDEX";
+            case "wikidata" -> "WIKIDATA";
+            default -> metadata.source().toUpperCase(java.util.Locale.ROOT);
+        });
+        out.setContentAvailability(CatalogVolumeResponse.AVAILABILITY_METADATA_ONLY);
+        out.setTitle(metadata.title());
+        out.setAuthor(metadata.authors() == null || metadata.authors().isEmpty()
+                ? null : String.join(", ", metadata.authors()));
+        out.setPublisher(metadata.publisher());
+        out.setPublishedYear(metadata.publishedYear());
+        out.setPageCount(metadata.pageCount());
+        out.setIsbn13(metadata.isbn13());
+        out.setThumbnailUrl(metadata.coverUrl());
+        out.setDescription(metadata.description());
+        markAvailability(out);
+        return out;
     }
 
     /**
@@ -445,12 +460,15 @@ public class CatalogService {
     }
 
     private List<CatalogVolumeResponse> fetchGoogle(String query, int max) throws Exception {
+        if (Instant.now().isBefore(googleUnavailableUntil)) {
+            return List.of();
+        }
         final StringBuilder url = new StringBuilder("https://www.googleapis.com/books/v1/volumes?q=")
                 .append(URLEncoder.encode(query, StandardCharsets.UTF_8))
                 .append("&maxResults=").append(max)
                 .append("&printType=books");
         if (apiKey != null && !apiKey.isBlank()) {
-            url.append("&key=").append(apiKey);
+            url.append("&key=").append(URLEncoder.encode(apiKey, StandardCharsets.UTF_8));
         } else {
             log.warn("google.books.api-key is not set — Google Books will reject the request (429).");
         }
@@ -461,9 +479,31 @@ public class CatalogService {
                 .GET()
                 .build();
 
-        final HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() != 200) {
-            throw new IllegalStateException("Google Books HTTP " + resp.statusCode());
+        HttpResponse<String> resp = null;
+        for (int attempt = 1; attempt <= GOOGLE_MAX_ATTEMPTS; attempt++) {
+            resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200) break;
+
+            final int status = resp.statusCode();
+            final boolean retryable = status == 429 || status == 500 || status == 502
+                    || status == 503 || status == 504;
+            if (!retryable || attempt == GOOGLE_MAX_ATTEMPTS) {
+                if (status == 429 || status == 503) {
+                    googleUnavailableUntil = Instant.now().plus(GOOGLE_OUTAGE_COOLDOWN);
+                    log.warn("Google Books temporarily unavailable (HTTP {}); suppressing requests for {} seconds",
+                            status, GOOGLE_OUTAGE_COOLDOWN.toSeconds());
+                    return List.of();
+                }
+                throw new IllegalStateException("Google Books HTTP " + status);
+            }
+
+            long delayMillis = retryDelayMillis(resp, attempt);
+            log.warn("Google Books HTTP {}; retrying attempt {}/{} in {} ms",
+                    status, attempt + 1, GOOGLE_MAX_ATTEMPTS, delayMillis);
+            Thread.sleep(delayMillis);
+        }
+        if (resp == null || resp.statusCode() != 200) {
+            throw new IllegalStateException("Google Books request failed");
         }
 
         final JsonNode root = mapper.readTree(resp.body());
@@ -473,6 +513,16 @@ public class CatalogService {
             if (v.getTitle() != null) out.add(v);
         }
         return out;
+    }
+
+    private static long retryDelayMillis(HttpResponse<?> response, int attempt) {
+        try {
+            String retryAfter = response.headers().firstValue("Retry-After").orElse(null);
+            if (retryAfter != null) return Math.min(2000L, Math.max(100L, Long.parseLong(retryAfter) * 1000L));
+        } catch (NumberFormatException ignored) {
+            // Fall through to bounded exponential backoff.
+        }
+        return Math.min(1500L, 250L * (1L << Math.max(0, attempt - 1)));
     }
 
     private CatalogVolumeResponse map(JsonNode item) {

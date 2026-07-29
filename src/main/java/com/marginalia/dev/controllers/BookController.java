@@ -7,6 +7,7 @@ import com.marginalia.dev.dto.uploads.DownloadUrlResponse;
 import com.marginalia.dev.entities.Book;
 import com.marginalia.dev.security.CustomUserDetails;
 import com.marginalia.dev.services.BookService;
+import com.marginalia.dev.services.BookService.ReadingDownload;
 import com.marginalia.dev.services.FileStorageService.PresignedDownload;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,13 +40,15 @@ public class BookController {
         return BookResponse.from(bookService.getOne(id, me.getUserId()));
     }
 
+    // Add To library (Check Tier)
+    // TODO :The Tiers should be Remouvable
     @PostMapping
     public ResponseEntity<BookResponse> create(@AuthenticationPrincipal CustomUserDetails me,
                                                @Valid @RequestBody BookCreateRequest req) {
         Book created = bookService.create(req, me.getUserId());
         return ResponseEntity.status(HttpStatus.CREATED).body(BookResponse.from(created));
     }
-
+    // Book's Status (Fresh , Finish, progress)
     @PatchMapping("/{id}")
     public BookResponse update(@AuthenticationPrincipal CustomUserDetails me,
                                @PathVariable UUID id,
@@ -65,6 +68,14 @@ public class BookController {
                                            @PathVariable UUID id) {
         PresignedDownload d = bookService.presignDownload(id, me.getUserId());
         return new DownloadUrlResponse(d.url(), d.expiresAt());
+    }
+
+    @GetMapping("/{id}/reading-download-url")
+    public DownloadUrlResponse readingDownloadUrl(@AuthenticationPrincipal CustomUserDetails me,
+                                                  @PathVariable UUID id) {
+        ReadingDownload reading = bookService.presignReadingDownload(id, me.getUserId());
+        PresignedDownload d = reading.download();
+        return new DownloadUrlResponse(d.url(), d.expiresAt(), reading.format());
     }
 
     /**

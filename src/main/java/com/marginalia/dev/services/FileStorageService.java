@@ -18,6 +18,12 @@ public interface FileStorageService {
     /** Verify the object actually landed; returns its size if so. */
     Optional<Long> headObject(String fileKey);
 
+    /** Read an object for server-side derivation (for example PDF → EPUB). */
+    byte[] readObject(String fileKey);
+
+    /** Store a backend-generated derivative. */
+    void putObject(String fileKey, byte[] bytes, String contentType);
+
     /** Best-effort delete — does not throw if the object is already gone. */
     void deleteObject(String fileKey);
 

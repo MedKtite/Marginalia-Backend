@@ -15,6 +15,7 @@ public class CatalogVolumeResponse {
 
     public static final String SOURCE_GUTENBERG = "GUTENBERG";
     public static final String SOURCE_GOOGLE = "GOOGLE";
+    public static final String SOURCE_OPEN_LIBRARY = "OPEN_LIBRARY";
     public static final String AVAILABILITY_FULL = "FULL";
     public static final String AVAILABILITY_METADATA_ONLY = "METADATA_ONLY";
 
