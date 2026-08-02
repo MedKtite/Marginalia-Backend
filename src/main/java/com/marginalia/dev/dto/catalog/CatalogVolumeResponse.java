@@ -32,6 +32,7 @@ public class CatalogVolumeResponse {
     private String language;
     private String thumbnailUrl;
     private String description;
+    private Integer downloadCount;
 
     /** Google Books community rating, 1.0–5.0. Null when Google has none. */
     private Double averageRating;
@@ -80,6 +81,9 @@ public class CatalogVolumeResponse {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public Integer getDownloadCount() { return downloadCount; }
+    public void setDownloadCount(Integer downloadCount) { this.downloadCount = downloadCount; }
 
     public Double getAverageRating() { return averageRating; }
     public void setAverageRating(Double averageRating) { this.averageRating = averageRating; }

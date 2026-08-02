@@ -2,6 +2,7 @@ package com.marginalia.dev.repo.dao;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Access to the gutenberg_catalog table — the nightly-synced Project Gutenberg
@@ -26,4 +27,14 @@ public interface GutenbergCatalogDao {
 
     /** Rows whose normalized title equals [titleNorm] (small candidate set). */
     List<Map<String, Object>> findByTitleNorm(String titleNorm);
+
+    List<Map<String, Object>> trending(int limit);
+
+    List<Map<String, Object>> topAuthors(int limit);
+
+    Optional<String> findReaderFileKey(int gutenbergId);
+
+    Optional<String> findReaderFileKeyByTitle(String title);
+
+    Optional<Integer> findGutenbergIdByTitle(String title);
 }

@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -73,7 +74,17 @@ public class PartitionMaintenanceScheduler {
                         "FOR VALUES FROM ('%s') TO ('%s')",
                 partitionName, table, ISO_DATE.format(start), ISO_DATE.format(end));
         try {
-            jdbc.execute(ddl);
+            jdbc.execute((ConnectionCallback<Void>) connection -> {
+                try (var statement = connection.createStatement()) {
+                    statement.execute("SELECT pg_advisory_lock(731947205)");
+                    try {
+                        statement.execute(ddl);
+                    } finally {
+                        statement.execute("SELECT pg_advisory_unlock(731947205)");
+                    }
+                }
+                return null;
+            });
             log.debug("Ensured partition {}", partitionName);
         } catch (Exception e) {
             log.warn("Failed to ensure partition {}: {}", partitionName, e.getMessage());

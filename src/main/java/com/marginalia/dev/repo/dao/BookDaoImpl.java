@@ -25,7 +25,7 @@ public class BookDaoImpl implements BookDao {
 
     private static final String COLUMNS = """
             id, user_id, title, author, narrator, publisher, published_year,
-            isbn_13 AS isbn13, google_id, page_count, duration_sec, language,
+            isbn_13 AS isbn13, google_id, gutenberg_id AS gutenbergId, page_count, duration_sec, language,
             format, file_key, file_size_bytes, cover_url, cover_dominant_color,
             processing_status, processing_error, reading_file_key, processing_version, description,
             status, progress_pct, cursor::text AS cursor,
@@ -72,14 +72,14 @@ public class BookDaoImpl implements BookDao {
         String sql = """
                 INSERT INTO books (
                     user_id, title, author, narrator, publisher, published_year,
-                    isbn_13, google_id, page_count, duration_sec, language,
+                    isbn_13, google_id, gutenberg_id, page_count, duration_sec, language,
                     format, file_key, file_size_bytes, cover_url, cover_dominant_color,
-                    processing_status, status, progress_pct, cursor, last_opened_at
+                    processing_status, reading_file_key, status, progress_pct, cursor, last_opened_at
                 ) VALUES (
                     :userId, :title, :author, :narrator, :publisher, :publishedYear,
-                    :isbn13, :googleId, :pageCount, :durationSec, :language,
+                    :isbn13, :googleId, :gutenbergId, :pageCount, :durationSec, :language,
                     :format, :fileKey, :fileSizeBytes, :coverUrl, :coverDominantColor,
-                    COALESCE(:processingStatus, 'ready'), :status, :progressPct, CAST(:cursor AS jsonb), :lastOpenedAt
+                    COALESCE(:processingStatus, 'ready'), :readingFileKey, :status, :progressPct, CAST(:cursor AS jsonb), :lastOpenedAt
                 )
                 RETURNING %s
                 """.formatted(COLUMNS);
@@ -93,6 +93,7 @@ public class BookDaoImpl implements BookDao {
                 .addValue("publishedYear",      b.getPublishedYear())
                 .addValue("isbn13",             b.getIsbn13())
                 .addValue("googleId",           b.getGoogleId())
+                .addValue("gutenbergId",        b.getGutenbergId())
                 .addValue("pageCount",          b.getPageCount())
                 .addValue("durationSec",        b.getDurationSec())
                 .addValue("language",           b.getLanguage())
@@ -102,6 +103,7 @@ public class BookDaoImpl implements BookDao {
                 .addValue("coverUrl",           b.getCoverUrl())
                 .addValue("coverDominantColor", b.getCoverDominantColor())
                 .addValue("processingStatus",  b.getProcessingStatus())
+                .addValue("readingFileKey",   b.getReadingFileKey())
                 .addValue("status",             b.getStatus() != null ? b.getStatus() : "reading")
                 .addValue("progressPct",        b.getProgressPct())
                 .addValue("cursor",             b.getCursor())
@@ -110,6 +112,15 @@ public class BookDaoImpl implements BookDao {
         return jdbc.queryForObject(sql, p, MAPPER);
     }
 
+    @Override
+    public void linkGutenberg(UUID id, UUID userId, int gutenbergId) {
+        jdbc.update(
+                "UPDATE books SET gutenberg_id = :gutenbergId, updated_at = NOW() WHERE id = :id AND user_id = :uid",
+                new MapSqlParameterSource()
+                        .addValue("id", id)
+                        .addValue("uid", userId)
+                        .addValue("gutenbergId", gutenbergId));
+    }
     @Override
     public Optional<Book> patch(UUID id, UUID userId,
                                 String status,

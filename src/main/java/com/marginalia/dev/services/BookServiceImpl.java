@@ -8,8 +8,11 @@ import com.marginalia.dev.exceptions.ForbiddenException;
 import com.marginalia.dev.exceptions.NotFoundException;
 import com.marginalia.dev.repo.dao.BookDao;
 import com.marginalia.dev.repo.dao.IngestionJobDao;
+import com.marginalia.dev.repo.dao.GutenbergCatalogDao;
 import com.marginalia.dev.repo.dao.SubscriptionDao;
 import com.marginalia.dev.services.metadata.MetadataResolver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +24,8 @@ import java.util.UUID;
 @Service
 public class BookServiceImpl implements BookService {
 
+    private static final Logger log = LoggerFactory.getLogger(BookServiceImpl.class);
+
     /** Free-tier book cap. */
     private static final int FREE_TIER_BOOK_LIMIT = 3;
 
@@ -29,6 +34,9 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private IngestionJobDao ingestionJobDao;
+
+    @Autowired
+    private GutenbergCatalogDao gutenbergCatalogDao;
 
     @Autowired
     private SubscriptionDao subscriptionDao;
@@ -74,6 +82,7 @@ public class BookServiceImpl implements BookService {
         b.setPublishedYear(req.getPublishedYear());
         b.setIsbn13(req.getIsbn13());
         b.setGoogleId(req.getGoogleId());
+        b.setGutenbergId(req.getGutenbergId());
         b.setPageCount(req.getPageCount());
         b.setDurationSec(req.getDurationSec());
         b.setLanguage(req.getLanguage());
@@ -81,6 +90,10 @@ public class BookServiceImpl implements BookService {
         b.setCoverUrl(req.getCoverUrl());
         b.setCoverDominantColor(req.getCoverDominantColor());
         b.setStatus(req.getStatus() != null ? req.getStatus() : defaultStatusFor(req.getFormat()));
+
+        if ("physical".equals(req.getFormat()) && req.getGutenbergId() != null) {
+            gutenbergCatalogDao.findReaderFileKey(req.getGutenbergId()).ifPresent(b::setReadingFileKey);
+        }
 
         // ── File-key handling ────────────────────────────────────────────
         if (req.getFileKey() != null && !req.getFileKey().isBlank()) {
@@ -109,13 +122,21 @@ public class BookServiceImpl implements BookService {
 
         boolean needsDocumentProcessing = b.getFileKey() != null
                 && ("pdf".equals(b.getFormat()) || "epub".equals(b.getFormat()));
-        if (needsDocumentProcessing) b.setProcessingStatus("pending");
+        boolean needsGutenbergProcessing = "physical".equals(b.getFormat())
+                && b.getGutenbergId() != null
+                && (b.getReadingFileKey() == null || b.getReadingFileKey().isBlank());
+        if (needsDocumentProcessing || needsGutenbergProcessing) {
+            b.setProcessingStatus("pending");
+        }
         Book created = bookDao.insert(b);
         if (needsDocumentProcessing) {
             ingestionJobDao.insert(created.getId(), "UPLOAD_DOCUMENT", created.getFileKey(),
                     java.util.Map.of("format", created.getFormat()));
         }
-        return metadataResolver.enrich(created);
+        if (needsGutenbergProcessing) {
+            enqueueGutenbergReader(created);
+        }
+        return created.getGutenbergId() != null ? created : metadataResolver.enrich(created);
     }
 
     @Override
@@ -171,15 +192,46 @@ public class BookServiceImpl implements BookService {
     public BookService.ReadingDownload presignReadingDownload(UUID bookId, UUID userId) {
         Book b = bookDao.findByIdAndUser(bookId, userId)
                 .orElseThrow(() -> new NotFoundException("Book not found"));
-        if (b.getFileKey() == null || b.getFileKey().isBlank() || storage == null) {
+        if (storage == null) {
             throw new NotFoundException("This book has no readable file.");
         }
-        if (b.getReadingFileKey() != null && !b.getReadingFileKey().isBlank()
-                && storage.headObject(b.getReadingFileKey()).isPresent()) {
-            return new BookService.ReadingDownload(
-                    storage.presignDownload(b.getReadingFileKey()), b.getReadingFileKey().endsWith("reader-v1.zip") ? "reader-v1" : "epub");
+        // Legacy catalog rows may predate books.gutenberg_id. Recover and persist
+        // the canonical ID before looking up or enqueueing the Python artifact.
+        Integer gutenbergId = b.getGutenbergId();
+        if (gutenbergId == null && "physical".equals(b.getFormat())) {
+            gutenbergId = gutenbergCatalogDao.findGutenbergIdByTitle(b.getTitle()).orElse(null);
+            if (gutenbergId != null) {
+                b.setGutenbergId(gutenbergId);
+                bookDao.linkGutenberg(b.getId(), userId, gutenbergId);
+            }
+        }
+
+        String catalogReaderKey = b.getReadingFileKey();
+        if ((catalogReaderKey == null || catalogReaderKey.isBlank()) && gutenbergId != null) {
+            catalogReaderKey = gutenbergCatalogDao.findReaderFileKey(gutenbergId).orElse(null);
+        }
+        if ((catalogReaderKey == null || catalogReaderKey.isBlank()) && gutenbergId != null) {
+            enqueueGutenbergReader(b);
+        }        boolean hasReading = catalogReaderKey != null && !catalogReaderKey.isBlank();
+        log.debug("Reading download book={} gutenbergId={} format={} readerKey={} fileKey={}",
+                b.getId(), b.getGutenbergId(), b.getFormat(), catalogReaderKey, b.getFileKey());
+        if (hasReading) {
+            String fmt = catalogReaderKey.endsWith("reader-v1.zip") ? "reader-v1" : "epub";
+            return new BookService.ReadingDownload(storage.presignDownload(catalogReaderKey), fmt);
+        }
+        if (b.getFileKey() == null || b.getFileKey().isBlank()) {
+            throw new NotFoundException("This book has no readable file.");
         }
         return new BookService.ReadingDownload(storage.presignDownload(b.getFileKey()), b.getFormat());
+    }
+
+    private void enqueueGutenbergReader(Book book) {
+        String gutenbergId = String.valueOf(book.getGutenbergId());
+        ingestionJobDao.insertIfAbsent(
+                book.getId(),
+                "GUTENBERG_READER",
+                gutenbergId,
+                java.util.Map.of("gutenberg_id", book.getGutenbergId()));
     }
 
     private String defaultStatusFor(String format) {

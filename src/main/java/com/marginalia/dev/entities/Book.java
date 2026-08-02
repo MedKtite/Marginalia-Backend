@@ -37,6 +37,7 @@ public class Book {
     // Google Books volume id (set on catalog adds) — lets us fetch the free
     // public-domain PDF for this title on demand. Null for uploads / manual.
     private String googleId;
+    private Integer gutenbergId;
 
     private Integer pageCount;
 
@@ -107,6 +108,9 @@ public class Book {
 
     public String getGoogleId() { return googleId; }
     public void setGoogleId(String googleId) { this.googleId = googleId; }
+
+    public Integer getGutenbergId() { return gutenbergId; }
+    public void setGutenbergId(Integer gutenbergId) { this.gutenbergId = gutenbergId; }
 
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }

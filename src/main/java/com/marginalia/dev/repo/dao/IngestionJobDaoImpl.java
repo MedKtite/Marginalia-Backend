@@ -43,6 +43,24 @@ public class IngestionJobDaoImpl implements IngestionJobDao {
                 (rs, n) -> map(new ColumnMapRowMapper().mapRow(rs, n)));
     }
 
+    @Override
+    public boolean insertIfAbsent(UUID bookId, String jobType, String sourceKey, Map<String, Object> payload) {
+        String sql = """
+                INSERT INTO ingestion_jobs (book_id, job_type, source_key, payload)
+                SELECT :bookId, :jobType, :sourceKey, CAST(:payload AS jsonb)
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM ingestion_jobs
+                    WHERE job_type = :jobType
+                      AND source_key = :sourceKey
+                      AND status IN ('pending', 'processing')
+                )
+                """;
+        return jdbc.update(sql, new MapSqlParameterSource()
+                .addValue("bookId", bookId)
+                .addValue("jobType", jobType)
+                .addValue("sourceKey", sourceKey)
+                .addValue("payload", write(payload))) > 0;
+    }
     @Override public Optional<IngestionJob> findByIdAndBook(UUID id, UUID bookId) {
         return jdbc.query("SELECT " + COLUMNS + " FROM ingestion_jobs WHERE id = :id AND book_id = :bookId",
                 new MapSqlParameterSource().addValue("id", id).addValue("bookId", bookId),

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marginalia.dev.dto.catalog.CatalogSearchResponse;
 import com.marginalia.dev.dto.catalog.CatalogVolumeResponse;
 import com.marginalia.dev.dto.catalog.LibrivoxBookResponse;
+import com.marginalia.dev.dto.catalog.TopAuthorResponse;
 import com.marginalia.dev.repo.dao.GutenbergCatalogDao;
 import com.marginalia.dev.repo.dao.SearchQueryDao;
 import com.marginalia.dev.services.metadata.MetadataResolver;
@@ -127,21 +128,45 @@ public class CatalogService {
      * interests selected from the request locale. Interleaved by query so one
      * keyword can't monopolize.
      */
+    /** Local-only Home feed; never calls Gutendex or Google Books. */
+    public List<CatalogVolumeResponse> trending(int max) {
+        final List<CatalogVolumeResponse> out = new ArrayList<>();
+        for (final Map<String, Object> row : gutenbergDao.trending(Math.min(Math.max(max, 1), 24))) {
+            out.add(fromGutenberg(row));
+        }
+        return out;
+    }
+
+    /** Precomputed nightly author ranking; no external service calls. */
+    public List<TopAuthorResponse> topAuthors(int max) {
+        final List<TopAuthorResponse> out = new ArrayList<>();
+        for (final Map<String, Object> row
+                : gutenbergDao.topAuthors(Math.min(Math.max(max, 1), 24))) {
+            final TopAuthorResponse author = new TopAuthorResponse();
+            author.setName((String) row.get("author_name"));
+            author.setRank(((Number) row.get("rank")).intValue());
+            author.setDownloadCount(((Number) row.get("download_count")).longValue());
+            author.setBookCount(((Number) row.get("book_count")).intValue());
+            author.setImageUrl((String) row.get("image_url"));
+            author.setTagline((String) row.get("tagline"));
+            out.add(author);
+        }
+        return out;
+    }
+
     public List<CatalogVolumeResponse> recommendations(UUID userId, int max, String acceptLanguage) {
         final List<String> recent = searchQueryDao.recentDistinct(userId, 5);
         final List<String> seeds = recent.isEmpty()
                 ? starterQueries(userId, acceptLanguage)
                 : recent;
 
-        // Fetch a few candidates per keyword, tolerating individual failures.
+        // Home must remain independent of external catalog availability.
+        // Re-run personalization seeds against the locally synced Gutenberg
+        // index; explicit Discovery searches can still use Google Books.
         final List<List<CatalogVolumeResponse>> perQuery = new ArrayList<>();
         for (final String q : seeds) {
             try {
-                List<CatalogVolumeResponse> hits = googleHits(q, 8);
-                if (hits.isEmpty() && recent.isEmpty()) {
-                    hits = gutenbergHits(q, 8);
-                }
-                perQuery.add(hits);
+                perQuery.add(gutenbergHits(q, 8));
             } catch (Exception e) {
                 log.warn("Recommendation lookup failed for '{}' ({})", q, e.getMessage());
             }
@@ -401,6 +426,10 @@ public class CatalogService {
         r.setAuthor(TextNormalizer.displayAuthor((String) row.get("authors")));
         r.setLanguage((String) row.get("language"));
         r.setThumbnailUrl(coverUrlFor(id));
+        final Object downloadCount = row.get("download_count");
+        if (downloadCount instanceof Number number) {
+            r.setDownloadCount(number.intValue());
+        }
         return r;
     }
 

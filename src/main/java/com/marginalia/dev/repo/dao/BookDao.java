@@ -19,6 +19,8 @@ public interface BookDao {
 
     Book insert(Book book);
 
+    void linkGutenberg(UUID id, UUID userId, int gutenbergId);
+
     Optional<Book> patchMetadata(UUID id, UUID userId, MetadataResult metadata);
 
     /**

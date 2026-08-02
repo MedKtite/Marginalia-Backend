@@ -19,6 +19,7 @@ public class BookResponse {
     private Integer publishedYear;
     private String isbn13;
     private String googleId;
+    private Integer gutenbergId;
     private Integer pageCount;
     private Integer durationSec;
     private String language;
@@ -56,6 +57,7 @@ public class BookResponse {
         r.publishedYear       = b.getPublishedYear();
         r.isbn13              = b.getIsbn13();
         r.googleId            = b.getGoogleId();
+        r.gutenbergId         = b.getGutenbergId();
         r.pageCount           = b.getPageCount();
         r.durationSec         = b.getDurationSec();
         r.language            = b.getLanguage();
@@ -100,6 +102,9 @@ public class BookResponse {
 
     public String getGoogleId() { return googleId; }
     public void setGoogleId(String googleId) { this.googleId = googleId; }
+
+    public Integer getGutenbergId() { return gutenbergId; }
+    public void setGutenbergId(Integer gutenbergId) { this.gutenbergId = gutenbergId; }
 
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }

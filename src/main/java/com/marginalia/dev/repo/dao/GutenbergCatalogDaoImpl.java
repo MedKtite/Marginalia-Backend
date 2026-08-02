@@ -7,6 +7,8 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import org.springframework.dao.EmptyResultDataAccessException;
 
 @Repository
 public class GutenbergCatalogDaoImpl implements GutenbergCatalogDao {
@@ -66,5 +68,62 @@ public class GutenbergCatalogDaoImpl implements GutenbergCatalogDao {
                 LIMIT 20
                 """;
         return jdbc.queryForList(sql, new MapSqlParameterSource().addValue("tn", titleNorm));
+    }
+
+    @Override
+    public List<Map<String, Object>> trending(int limit) {
+        final String sql = """
+                SELECT g.gutenberg_id, g.title, g.authors, g.language,
+                       t.download_count
+                FROM gutenberg_trending_books t
+                JOIN gutenberg_catalog g ON g.gutenberg_id = t.gutenberg_id
+                ORDER BY t.rank
+                LIMIT :limit
+                """;
+        return jdbc.queryForList(sql, new MapSqlParameterSource().addValue("limit", limit));
+    }
+
+    @Override
+    public List<Map<String, Object>> topAuthors(int limit) {
+        final String sql = """
+                SELECT author_name, rank, download_count, book_count,
+                       image_url, tagline
+                FROM gutenberg_top_authors
+                ORDER BY rank
+                LIMIT :limit
+                """;
+        return jdbc.queryForList(sql, new MapSqlParameterSource().addValue("limit", limit));
+    }
+
+    @Override
+    public Optional<String> findReaderFileKey(int gutenbergId) {
+        try {
+            return Optional.ofNullable(jdbc.queryForObject(
+                    "SELECT reader_file_key FROM gutenberg_catalog WHERE gutenberg_id = :id AND reader_file_key IS NOT NULL",
+                    new MapSqlParameterSource().addValue("id", gutenbergId), String.class));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<String> findReaderFileKeyByTitle(String title) {
+        try {
+            return Optional.ofNullable(jdbc.queryForObject(
+                    "SELECT reader_file_key FROM gutenberg_catalog WHERE title_norm = :title AND reader_file_key IS NOT NULL LIMIT 1",
+                    new MapSqlParameterSource().addValue("title", com.marginalia.dev.services.TextNormalizer.normalize(title)), String.class));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+    @Override
+    public Optional<Integer> findGutenbergIdByTitle(String title) {
+        try {
+            return Optional.ofNullable(jdbc.queryForObject(
+                    "SELECT gutenberg_id FROM gutenberg_catalog WHERE title_norm = :title ORDER BY (reader_file_key IS NOT NULL) DESC, gutenberg_id LIMIT 1",
+                    new MapSqlParameterSource().addValue("title", com.marginalia.dev.services.TextNormalizer.normalize(title)), Integer.class));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
     }
 }

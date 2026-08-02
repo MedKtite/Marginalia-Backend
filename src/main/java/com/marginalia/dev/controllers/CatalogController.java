@@ -4,6 +4,7 @@ import com.marginalia.dev.dto.catalog.BookRequestCreateRequest;
 import com.marginalia.dev.dto.catalog.CatalogSearchResponse;
 import com.marginalia.dev.dto.catalog.CatalogVolumeResponse;
 import com.marginalia.dev.dto.catalog.LibrivoxBookResponse;
+import com.marginalia.dev.dto.catalog.TopAuthorResponse;
 import com.marginalia.dev.repo.dao.BookRequestDao;
 import com.marginalia.dev.repo.dao.SearchQueryDao;
 import com.marginalia.dev.security.CustomUserDetails;
@@ -82,6 +83,16 @@ public class CatalogController {
             @RequestParam(required = false) String author) {
         final LibrivoxBookResponse b = catalogService.librivoxLookup(title, author);
         return b == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(b);
+    }
+
+    @GetMapping("/trending")
+    public List<CatalogVolumeResponse> trending(@RequestParam(defaultValue = "24") int limit) {
+        return catalogService.trending(limit);
+    }
+
+    @GetMapping("/top-authors")
+    public List<TopAuthorResponse> topAuthors(@RequestParam(defaultValue = "12") int limit) {
+        return catalogService.topAuthors(limit);
     }
 
     @GetMapping("/recommendations")
