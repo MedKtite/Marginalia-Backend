@@ -28,6 +28,7 @@ public class BookServiceImpl implements BookService {
 
     /** Free-tier book cap. */
     private static final int FREE_TIER_BOOK_LIMIT = 3;
+    private static final String GUTENBERG_READER_KEY_SUFFIX = "/reader-v4.zip";
 
     @Autowired
     private BookDao bookDao;
@@ -136,7 +137,13 @@ public class BookServiceImpl implements BookService {
         if (needsGutenbergProcessing) {
             enqueueGutenbergReader(created);
         }
-        return created.getGutenbergId() != null ? created : metadataResolver.enrich(created);
+        try {
+            return metadataResolver.enrich(created);
+        } catch (RuntimeException ex) {
+            // Metadata providers are optional; a manual book must still be saved.
+            log.warn("Metadata enrichment failed for book {}: {}", created.getId(), ex.getMessage());
+            return created;
+        }
     }
 
     @Override
@@ -206,18 +213,27 @@ public class BookServiceImpl implements BookService {
             }
         }
 
-        String catalogReaderKey = b.getReadingFileKey();
-        if ((catalogReaderKey == null || catalogReaderKey.isBlank()) && gutenbergId != null) {
-            catalogReaderKey = gutenbergCatalogDao.findReaderFileKey(gutenbergId).orElse(null);
+        if (gutenbergId != null) {
+            final String catalogReaderKey = gutenbergCatalogDao
+                    .findReaderFileKey(gutenbergId)
+                    .orElse(null);
+            if (catalogReaderKey == null || !catalogReaderKey.endsWith(GUTENBERG_READER_KEY_SUFFIX)) {
+                enqueueGutenbergReader(b);
+                throw new NotFoundException("Preparing the latest readable edition.");
+            }
+            log.debug("Reading Gutenberg package book={} gutenbergId={} readerKey={}",
+                    b.getId(), gutenbergId, catalogReaderKey);
+            return new BookService.ReadingDownload(
+                    storage.presignDownload(catalogReaderKey), "reader-v1");
         }
-        if ((catalogReaderKey == null || catalogReaderKey.isBlank()) && gutenbergId != null) {
-            enqueueGutenbergReader(b);
-        }        boolean hasReading = catalogReaderKey != null && !catalogReaderKey.isBlank();
+
+        String readerKey = b.getReadingFileKey();
+        boolean hasReading = readerKey != null && !readerKey.isBlank();
         log.debug("Reading download book={} gutenbergId={} format={} readerKey={} fileKey={}",
-                b.getId(), b.getGutenbergId(), b.getFormat(), catalogReaderKey, b.getFileKey());
+                b.getId(), b.getGutenbergId(), b.getFormat(), readerKey, b.getFileKey());
         if (hasReading) {
-            String fmt = catalogReaderKey.endsWith("reader-v1.zip") ? "reader-v1" : "epub";
-            return new BookService.ReadingDownload(storage.presignDownload(catalogReaderKey), fmt);
+            String fmt = readerKey.endsWith(".zip") ? "reader-v1" : "epub";
+            return new BookService.ReadingDownload(storage.presignDownload(readerKey), fmt);
         }
         if (b.getFileKey() == null || b.getFileKey().isBlank()) {
             throw new NotFoundException("This book has no readable file.");
