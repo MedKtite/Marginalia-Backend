@@ -27,6 +27,8 @@ public class User {
 
     private String avatarInitial;
 
+    private String avatarUrl;
+
     /**
      * Never serialized to JSON — internal only.
      */
@@ -65,6 +67,9 @@ public class User {
 
     public String getAvatarInitial() { return avatarInitial; }
     public void setAvatarInitial(String avatarInitial) { this.avatarInitial = avatarInitial; }
+
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
 
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }

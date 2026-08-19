@@ -11,7 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/me/notifications")
+@RequestMapping("/me/notifications/preferences")
 public class NotificationPreferencesController {
 
     @Autowired

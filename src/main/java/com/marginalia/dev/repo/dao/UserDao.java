@@ -18,4 +18,10 @@ public interface UserDao {
     void updateLastSeen(UUID userId);
 
     void updatePassword(UUID userId, String passwordHash);
+
+    Optional<User> updateProfile(UUID userId, String displayName, String shortName, String timezone);
+
+    Optional<User> updateAvatar(UUID userId, String avatarUrl);
+
+    boolean delete(UUID userId);
 }

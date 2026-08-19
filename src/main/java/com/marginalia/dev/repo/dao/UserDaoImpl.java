@@ -21,7 +21,7 @@ public class UserDaoImpl implements UserDao {
     private static final BeanPropertyRowMapper<User> MAPPER = new BeanPropertyRowMapper<>(User.class);
 
     private static final String COLUMNS = """
-            id, email, email_verified, display_name, short_name, avatar_initial,
+            id, email, email_verified, display_name, short_name, avatar_initial, avatar_url,
             password_hash, oauth_provider, oauth_subject, timezone,
             created_at, updated_at, last_seen_at
             """;
@@ -114,5 +114,67 @@ public class UserDaoImpl implements UserDao {
                         .addValue("passwordHash", passwordHash)
                         .addValue("now", OffsetDateTime.now())
                         .addValue("id", userId));
+    }
+
+    @Override
+    public Optional<User> updateProfile(UUID userId, String displayName, String shortName, String timezone) {
+        String avatarInitial = displayName != null && !displayName.isBlank()
+                ? displayName.trim().substring(0, 1).toUpperCase()
+                : null;
+
+        String sql = """
+                UPDATE users
+                SET display_name = COALESCE(:displayName, display_name),
+                    short_name = COALESCE(:shortName, short_name),
+                    avatar_initial = COALESCE(:avatarInitial, avatar_initial),
+                    timezone = COALESCE(:timezone, timezone),
+                    updated_at = :now
+                WHERE id = :id
+                RETURNING %s
+                """.formatted(COLUMNS);
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("id", userId)
+                .addValue("displayName", displayName)
+                .addValue("shortName", shortName)
+                .addValue("avatarInitial", avatarInitial)
+                .addValue("timezone", timezone)
+                .addValue("now", OffsetDateTime.now());
+
+        try {
+            User u = jdbc.queryForObject(sql, params, MAPPER);
+            return Optional.ofNullable(u);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<User> updateAvatar(UUID userId, String avatarUrl) {
+        String sql = """
+                UPDATE users
+                SET avatar_url = :avatarUrl,
+                    updated_at = :now
+                WHERE id = :id
+                RETURNING %s
+                """.formatted(COLUMNS);
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("id", userId)
+                .addValue("avatarUrl", avatarUrl)
+                .addValue("now", OffsetDateTime.now());
+
+        try {
+            User u = jdbc.queryForObject(sql, params, MAPPER);
+            return Optional.ofNullable(u);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public boolean delete(UUID userId) {
+        int affected = jdbc.update("DELETE FROM users WHERE id = :id", new MapSqlParameterSource("id", userId));
+        return affected > 0;
     }
 }

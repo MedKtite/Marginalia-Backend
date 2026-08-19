@@ -7,6 +7,7 @@ import com.marginalia.dev.entities.NotificationPreferences;
 import com.marginalia.dev.entities.NotificationQueueItem;
 import com.marginalia.dev.entities.User;
 import com.marginalia.dev.repo.dao.DeviceDao;
+import com.marginalia.dev.repo.dao.NotificationDao;
 import com.marginalia.dev.repo.dao.NotificationLogDao;
 import com.marginalia.dev.repo.dao.NotificationPreferencesDao;
 import com.marginalia.dev.repo.dao.NotificationQueueDao;
@@ -71,6 +72,9 @@ public class NotificationDispatcher {
     private DeviceDao deviceDao;
 
     @Autowired
+    private NotificationDao notificationDao;
+
+    @Autowired
     private NotificationSender sender;
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -132,6 +136,14 @@ public class NotificationDispatcher {
                         null, d.getId(), item.getPayload());
                 log.warn("FCM send to device {} failed: {}", d.getId(), sendErr.getMessage());
             }
+        }
+
+        // Persist to user inbox table so it appears in the mobile notifications screen
+        try {
+            notificationDao.create(item.getUserId(), item.getCategory(), title != null ? title : "Notification",
+                    body != null ? body : "", mapper.writeValueAsString(data));
+        } catch (Exception e) {
+            log.warn("Failed to persist notification to inbox for user {}: {}", item.getUserId(), e.getMessage());
         }
 
         if (sent == 0 && !sender.isDryRun()) {

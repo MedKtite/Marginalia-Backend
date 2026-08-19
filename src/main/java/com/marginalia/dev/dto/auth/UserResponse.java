@@ -19,6 +19,7 @@ public class UserResponse {
     private String displayName;
     private String shortName;
     private String avatarInitial;
+    private String avatarUrl;
     private String timezone;
     private String authProvider; // "password" | "google" | "x" | ...
 
@@ -33,6 +34,7 @@ public class UserResponse {
         r.displayName   = u.getDisplayName();
         r.shortName     = u.getShortName();
         r.avatarInitial = u.getAvatarInitial();
+        r.avatarUrl     = u.getAvatarUrl();
         r.timezone      = u.getTimezone();
         r.authProvider  = u.getOauthProvider() != null ? u.getOauthProvider() : "password";
         r.createdAt     = u.getCreatedAt();
@@ -56,6 +58,9 @@ public class UserResponse {
 
     public String getAvatarInitial() { return avatarInitial; }
     public void setAvatarInitial(String avatarInitial) { this.avatarInitial = avatarInitial; }
+
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
 
     public String getTimezone() { return timezone; }
     public void setTimezone(String timezone) { this.timezone = timezone; }
