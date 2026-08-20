@@ -46,9 +46,22 @@ public class MetadataResolver {
             if (cached.isPresent()) return cached.map(this::fromCache);
         }
 
+        final List<java.util.concurrent.CompletableFuture<Optional<MetadataResult>>> futures = clients.stream()
+                .map(client -> java.util.concurrent.CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return client.find(isbn, title, author);
+                            } catch (Exception e) {
+                                return Optional.<MetadataResult>empty();
+                            }
+                        }))
+                .toList();
+
         final List<MetadataResult> results = new ArrayList<>();
-        for (MetadataClient client : clients) {
-            client.find(isbn, title, author).ifPresent(results::add);
+        for (var f : futures) {
+            try {
+                f.join().ifPresent(results::add);
+            } catch (Exception ignored) {}
         }
         final MetadataResult merged = merge(results);
         if (merged != null && merged.isbn13() != null) {

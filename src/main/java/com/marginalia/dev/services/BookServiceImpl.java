@@ -137,13 +137,15 @@ public class BookServiceImpl implements BookService {
         if (needsGutenbergProcessing) {
             enqueueGutenbergReader(created);
         }
-        try {
-            return metadataResolver.enrich(created);
-        } catch (RuntimeException ex) {
-            // Metadata providers are optional; a manual book must still be saved.
-            log.warn("Metadata enrichment failed for book {}: {}", created.getId(), ex.getMessage());
-            return created;
-        }
+        // Run metadata enrichment asynchronously so external API timeouts don't block the client
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                metadataResolver.enrich(created);
+            } catch (Exception ex) {
+                log.warn("Metadata enrichment failed in background for book {}: {}", created.getId(), ex.getMessage());
+            }
+        });
+        return created;
     }
 
     @Override

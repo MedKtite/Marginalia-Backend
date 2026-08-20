@@ -16,14 +16,14 @@ abstract class AbstractMetadataClient implements MetadataClient {
     protected final Logger log = LoggerFactory.getLogger(getClass());
     protected final ObjectMapper mapper;
     protected final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
+            .connectTimeout(Duration.ofSeconds(2))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
     protected AbstractMetadataClient(ObjectMapper mapper) { this.mapper = mapper; }
     protected JsonNode getJson(String url) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(6))
+                .timeout(Duration.ofSeconds(3))
                 .header("Accept", "application/json")
                 .header("User-Agent", "Marginalia/1.0 (book metadata resolver)")
                 .GET()

@@ -35,7 +35,7 @@ public class CoverProxyController {
     private static final Logger log = LoggerFactory.getLogger(CoverProxyController.class);
 
     private static final String USER_AGENT =
-            "Mozilla/5.0 (compatible; MarginaliaCoverProxy/1.0)";
+            "MarginaliaApp/1.0 (https://github.com/marginalia; contact@marginalia.app)";
     private static final int CACHE_MAX_ENTRIES = 300;
 
     private record CachedCover(byte[] bytes, String contentType) {}
@@ -106,6 +106,10 @@ public class CoverProxyController {
         return host.equals("books.google.com")
                 || host.endsWith(".google.com")
                 || host.endsWith(".googleusercontent.com")
-                || host.equals("www.gutenberg.org"); // Discovery: Gutenberg covers
+                || host.equals("www.gutenberg.org")
+                || host.endsWith(".gutenberg.org")
+                || host.equals("upload.wikimedia.org")
+                || host.endsWith(".wikimedia.org")
+                || host.endsWith(".wikipedia.org");
     }
 }
