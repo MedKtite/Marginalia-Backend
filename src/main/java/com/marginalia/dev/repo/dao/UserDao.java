@@ -23,5 +23,7 @@ public interface UserDao {
 
     Optional<User> updateAvatar(UUID userId, String avatarUrl);
 
+    void updateEmailVerified(UUID userId, boolean emailVerified);
+
     boolean delete(UUID userId);
 }

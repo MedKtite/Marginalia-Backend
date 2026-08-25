@@ -9,6 +9,7 @@ import com.marginalia.dev.entities.User;
 import com.marginalia.dev.exceptions.BadRequestException;
 import com.marginalia.dev.exceptions.ConflictException;
 import com.marginalia.dev.exceptions.UnauthorizedException;
+import com.marginalia.dev.repo.dao.EmailVerificationTokenDao;
 import com.marginalia.dev.repo.dao.PasswordResetTokenDao;
 import com.marginalia.dev.repo.dao.UserDao;
 import com.marginalia.dev.security.JwtService;
@@ -46,6 +47,12 @@ public class AuthServiceImpl implements AuthService {
     private PasswordResetEmailService passwordResetEmailService;
 
     @Autowired
+    private EmailVerificationTokenDao emailVerificationTokenDao;
+
+    @Autowired
+    private EmailVerificationService emailVerificationService;
+
+    @Autowired
     private JwtService jwtService;
 
     @Autowired
@@ -77,6 +84,17 @@ public class AuthServiceImpl implements AuthService {
         try {
             User saved = userDao.insert(u);
             issueTokens(saved, response);
+
+            // Generate email verification token (expires in 24 hours) and dispatch email
+            byte[] bytes = new byte[32];
+            SECURE_RANDOM.nextBytes(bytes);
+            String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+            emailVerificationTokenDao.replaceForUser(
+                    saved.getId(),
+                    sha256(rawToken),
+                    OffsetDateTime.now().plusHours(24));
+            emailVerificationService.sendVerificationEmail(saved.getEmail(), rawToken, saved.getDisplayName());
+
             return saved;
         } catch (DuplicateKeyException e) {
             throw new ConflictException("Email already registered");
@@ -225,6 +243,37 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BadRequestException(
                         "This recovery link is invalid or has expired."));
         userDao.updatePassword(userId, passwordEncoder.encode(req.getPassword()));
+    }
+
+    @Override
+    @Transactional
+    public void verifyEmail(String token) {
+        if (token == null || token.isBlank()) {
+            throw new BadRequestException("Verification token is required.");
+        }
+        UUID userId = emailVerificationTokenDao.consume(sha256(token.trim()))
+                .orElseThrow(() -> new BadRequestException(
+                        "This verification link is invalid or has expired."));
+        userDao.updateEmailVerified(userId, true);
+    }
+
+    @Override
+    public void resendVerificationEmail(UUID userId) {
+        User user = userDao.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("Account not found."));
+
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            return; // Already verified, nothing to do
+        }
+
+        byte[] bytes = new byte[32];
+        SECURE_RANDOM.nextBytes(bytes);
+        String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        emailVerificationTokenDao.replaceForUser(
+                user.getId(),
+                sha256(rawToken),
+                OffsetDateTime.now().plusHours(24));
+        emailVerificationService.sendVerificationEmail(user.getEmail(), rawToken, user.getDisplayName());
     }
 
     // ─────────────────────────────────────────────────────────────────────

@@ -35,15 +35,15 @@ public class CoverProxyController {
     private static final Logger log = LoggerFactory.getLogger(CoverProxyController.class);
 
     private static final String USER_AGENT =
-            "MarginaliaApp/1.0 (https://github.com/marginalia; contact@marginalia.app)";
-    private static final int CACHE_MAX_ENTRIES = 300;
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+    private static final int CACHE_MAX_ENTRIES = 500;
 
     private record CachedCover(byte[] bytes, String contentType) {}
 
     private final ConcurrentHashMap<String, CachedCover> cache = new ConcurrentHashMap<>();
 
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
+            .connectTimeout(Duration.ofSeconds(4))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .version(HttpClient.Version.HTTP_1_1)
             .build();
@@ -70,9 +70,10 @@ public class CoverProxyController {
         try {
             final HttpResponse<byte[]> resp = http.send(
                     HttpRequest.newBuilder(uri)
-                            .timeout(Duration.ofSeconds(20))
+                            .timeout(Duration.ofSeconds(5))
                             .header("User-Agent", USER_AGENT)
-                            .header("Accept", "image/*")
+                            .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+                            .header("Accept-Language", "en-US,en;q=0.9")
                             .GET()
                             .build(),
                     HttpResponse.BodyHandlers.ofByteArray());

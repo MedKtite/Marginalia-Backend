@@ -9,6 +9,8 @@ import com.marginalia.dev.entities.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import java.util.UUID;
+
 public interface AuthService {
 
     User register(RegisterRequest req, HttpServletResponse response);
@@ -31,4 +33,8 @@ public interface AuthService {
     void requestPasswordReset(ForgotPasswordRequest req);
 
     void resetPassword(ResetPasswordRequest req);
+
+    void verifyEmail(String token);
+
+    void resendVerificationEmail(UUID userId);
 }

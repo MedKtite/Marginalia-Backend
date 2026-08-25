@@ -173,6 +173,20 @@ public class UserDaoImpl implements UserDao {
     }
 
     @Override
+    public void updateEmailVerified(UUID userId, boolean emailVerified) {
+        jdbc.update(
+                """
+                UPDATE users
+                SET email_verified = :emailVerified, updated_at = :now
+                WHERE id = :id
+                """,
+                new MapSqlParameterSource()
+                        .addValue("emailVerified", emailVerified)
+                        .addValue("now", OffsetDateTime.now())
+                        .addValue("id", userId));
+    }
+
+    @Override
     public boolean delete(UUID userId) {
         int affected = jdbc.update("DELETE FROM users WHERE id = :id", new MapSqlParameterSource("id", userId));
         return affected > 0;
