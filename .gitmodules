@@ -1,6 +1,0 @@
-[submodule "frontend-mobile"]
-	path = frontend-mobile
-	url = https://github.com/MedKtite/frontend-mobile.git
-[submodule "marginalia-ingestion"]
-	path = marginalia-ingestion
-	url = https://github.com/MedKtite/marginalia-ingestion.git
