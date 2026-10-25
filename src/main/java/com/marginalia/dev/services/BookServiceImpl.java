@@ -28,7 +28,7 @@ public class BookServiceImpl implements BookService {
 
     /** Free-tier book cap. */
     private static final int FREE_TIER_BOOK_LIMIT = 3;
-    private static final String GUTENBERG_READER_KEY_SUFFIX = "/reader-v4.zip";
+    private static final String GUTENBERG_READER_KEY_SUFFIX = "/reader-v5.zip";
 
     @Autowired
     private BookDao bookDao;

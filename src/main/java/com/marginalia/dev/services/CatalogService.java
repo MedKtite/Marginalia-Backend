@@ -6,8 +6,10 @@ import com.marginalia.dev.dto.catalog.CatalogSearchResponse;
 import com.marginalia.dev.dto.catalog.CatalogVolumeResponse;
 import com.marginalia.dev.dto.catalog.LibrivoxBookResponse;
 import com.marginalia.dev.dto.catalog.TopAuthorResponse;
+import com.marginalia.dev.repo.dao.CatalogLookupCacheDao;
 import com.marginalia.dev.repo.dao.GutenbergCatalogDao;
 import com.marginalia.dev.repo.dao.SearchQueryDao;
+import com.marginalia.dev.services.metadata.GutenbergRdfClient;
 import com.marginalia.dev.services.metadata.MetadataResolver;
 import com.marginalia.dev.services.metadata.MetadataResult;
 import org.slf4j.Logger;
@@ -31,9 +33,12 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Two-layer catalog search behind GET /me/catalog/search.
@@ -55,8 +60,11 @@ public class CatalogService {
     private static final Logger log = LoggerFactory.getLogger(CatalogService.class);
 
     private static final Duration GOOGLE_TIMEOUT = Duration.ofSeconds(3);
-    private static final int GOOGLE_MAX_ATTEMPTS = 3;
-    private static final Duration GOOGLE_OUTAGE_COOLDOWN = Duration.ofSeconds(30);
+    // One attempt only: search must not wait on retries of an optional layer.
+    private static final int GOOGLE_MAX_ATTEMPTS = 1;
+    private static final Duration GOOGLE_OUTAGE_COOLDOWN = Duration.ofMinutes(2);
+    private static final Duration LOOKUP_HIT_TTL = Duration.ofDays(30);
+    private static final Duration LOOKUP_MISS_TTL = Duration.ofHours(6);
     private static final Duration CACHE_TTL = Duration.ofHours(24);
     private static final int CACHE_MAX_ENTRIES = 500;
     private static final int GUTENBERG_MAX = 10;
@@ -72,6 +80,12 @@ public class CatalogService {
 
     @Autowired
     private MetadataResolver metadataResolver;
+
+    @Autowired
+    private GutenbergRdfClient gutenbergRdfClient;
+
+    @Autowired
+    private CatalogLookupCacheDao lookupCacheDao;
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(2))
@@ -93,9 +107,11 @@ public class CatalogService {
         final String query = q.trim();
         final int max = Math.min(Math.max(limit, 1), 40);
 
-        // Layer 1 — readable-in-app titles from our own index.
+        // Layer 1 — readable-in-app titles from our own index. The first
+        // GUTENBERG_MAX lead; the rest back-fill whatever Google can't supply.
+        final List<CatalogVolumeResponse> local = gutenbergHits(query, max);
         final List<CatalogVolumeResponse> items =
-                new ArrayList<>(gutenbergHits(query, Math.min(max, GUTENBERG_MAX)));
+                new ArrayList<>(local.subList(0, Math.min(local.size(), GUTENBERG_MAX)));
 
         // Layer 2 — Google Books, degraded gracefully.
         boolean partial = false;
@@ -103,6 +119,8 @@ public class CatalogService {
         try {
             google = googleHits(query, max);
         } catch (Exception e) {
+            // Timeouts count as an outage too, so the next searches skip Google.
+            googleUnavailableUntil = Instant.now().plus(GOOGLE_OUTAGE_COOLDOWN);
             log.warn("Google Books unavailable — returning local results only ({})", e.getMessage());
             partial = true;
         }
@@ -116,6 +134,10 @@ public class CatalogService {
             if (!seen.add(dedupeKey(g.getTitle(), g.getAuthor()))) continue;
             markAvailability(g);
             items.add(g);
+        }
+        for (final CatalogVolumeResponse g : local.subList(Math.min(local.size(), GUTENBERG_MAX), local.size())) {
+            if (items.size() >= max) break;
+            if (seen.add(dedupeKey(g.getTitle(), g.getAuthor()))) items.add(g);
         }
         return CatalogSearchResponse.of(query, partial, items);
     }
@@ -216,12 +238,73 @@ public class CatalogService {
         return List.of("classics", "fiction", "self help", "history", "biography", "philosophy", "poetry");
     }
 
-    /** Resolves catalog details through the shared metadata provider chain. */
-    public CatalogVolumeResponse lookup(String title, String author) {
-        if (title == null || title.isBlank()) return null;
-        return metadataResolver.resolve(null, title.trim(), author)
-                .map(this::fromMetadata)
+    /**
+     * Book-page details (description, pages, year, downloads). Resolved through
+     * the provider chain once, then served from catalog_lookup_cache so every
+     * later open is instant and identical. Gutenberg titles also read the
+     * gutenberg.org record by id, whose summary is preferred over title-matched
+     * descriptions.
+     */
+    public CatalogVolumeResponse lookup(String title, String author, Integer gutenbergId) {
+        final boolean hasTitle = title != null && !title.isBlank();
+        if (!hasTitle && gutenbergId == null) return null;
+        final String key = gutenbergId != null
+                ? "gutenberg:" + gutenbergId
+                : "title:" + TextNormalizer.normalize(title) + "|" + TextNormalizer.tokenKey(author);
+
+        final var cached = lookupCacheDao.findFresh(key);
+        if (cached.isPresent()) {
+            final String json = cached.get().json();
+            if (json == null) return null;
+            try {
+                return mapper.readValue(json, CatalogVolumeResponse.class);
+            } catch (Exception e) {
+                log.warn("Unreadable lookup cache entry {} — refreshing ({})", key, e.getMessage());
+            }
+        }
+
+        final var byId = gutenbergId == null
+                ? java.util.concurrent.CompletableFuture.completedFuture(Optional.<MetadataResult>empty())
+                : java.util.concurrent.CompletableFuture.supplyAsync(() -> gutenbergRdfClient.findById(gutenbergId));
+        final Optional<MetadataResult> resolved = hasTitle
+                ? metadataResolver.resolve(null, title.trim(), author)
+                : Optional.empty();
+        final Optional<MetadataResult> gutenberg = byId.join();
+
+        final CatalogVolumeResponse out = resolved.map(this::fromMetadata)
+                .or(() -> gutenberg.map(this::fromMetadata))
                 .orElse(null);
+        if (out != null && gutenberg.isPresent()) {
+            if (gutenberg.get().description() != null) {
+                out.setDescription(cleanGeneratedSummary(gutenberg.get().description()));
+            }
+            out.setDownloadCount(downloadCount(gutenberg.get().raw()));
+        }
+
+        // Cache a complete answer for long; a miss or a description-less answer
+        // (often a provider timeout) only briefly, so it is retried later.
+        final boolean complete = out != null && out.getDescription() != null;
+        try {
+            lookupCacheDao.upsert(key, out == null ? null : mapper.writeValueAsString(out),
+                    complete ? LOOKUP_HIT_TTL : LOOKUP_MISS_TTL);
+        } catch (Exception e) {
+            log.warn("Could not cache lookup {} ({})", key, e.getMessage());
+        }
+        return out;
+    }
+
+    /** Gutenberg appends a provenance note to generated summaries. */
+    private static String cleanGeneratedSummary(String summary) {
+        return summary.replaceAll("\\(This is an automatically generated summary\\.?\\)\\s*$", "").trim();
+    }
+
+    private Integer downloadCount(String rawJson) {
+        try {
+            final JsonNode count = mapper.readTree(rawJson).path("download_count");
+            return count.isNumber() ? count.asInt() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private CatalogVolumeResponse fromMetadata(MetadataResult metadata) {
@@ -402,10 +485,53 @@ public class CatalogService {
 
     // ── Layer 1: Gutenberg index ────────────────────────────────────────────
 
+    /** Google-style operators the app sends from filters and category chips. */
+    private static final Pattern SEARCH_OPERATOR = Pattern.compile(
+            "(intitle|inauthor|subject|isbn):(?:\"([^\"]*)\"|(\\S+))", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Discovery categories that are not Library of Congress subject headings
+     * (what Gutenberg's subjects use) mapped to headings that are.
+     */
+    private static final Map<String, List<String>> SUBJECT_ALIASES = Map.of(
+            "classics", List.of("Classical literature", "Epic poetry", "Greek literature", "Latin literature"),
+            "self help", List.of("Conduct of life", "Success", "Self-culture"),
+            "business", List.of("Business", "Commerce", "Economics"),
+            "biography", List.of("Biography", "Autobiographies"));
+
+    private List<Map<String, Object>> gutenbergRows(String query, int limit) {
+        final Matcher m = SEARCH_OPERATOR.matcher(query);
+        if (!m.find()) return gutenbergDao.search(query, limit);
+
+        String title = null;
+        final List<String> authors = new ArrayList<>();
+        final List<String> subjects = new ArrayList<>();
+        boolean isbnOnly = true;
+        m.reset();
+        while (m.find()) {
+            final String value = (m.group(2) != null ? m.group(2) : m.group(3)).trim();
+            if (value.isEmpty()) continue;
+            switch (m.group(1).toLowerCase(java.util.Locale.ROOT)) {
+                case "intitle" -> { title = TextNormalizer.normalize(value); isbnOnly = false; }
+                case "inauthor" -> { authors.addAll(List.of(value.split("[\\s,]+"))); isbnOnly = false; }
+                case "subject" -> {
+                    subjects.addAll(SUBJECT_ALIASES.getOrDefault(
+                            value.toLowerCase(java.util.Locale.ROOT), List.of(value)));
+                    isbnOnly = false;
+                }
+                default -> { } // isbn: Gutenberg titles carry no ISBNs
+            }
+        }
+        final String text = SEARCH_OPERATOR.matcher(query).replaceAll(" ").trim();
+        if (isbnOnly && text.isEmpty()) return List.of();
+        authors.removeIf(String::isBlank);
+        return gutenbergDao.advancedSearch(text, title, authors, subjects, limit);
+    }
+
     private List<CatalogVolumeResponse> gutenbergHits(String query, int limit) {
         try {
             final List<CatalogVolumeResponse> out = new ArrayList<>();
-            for (final Map<String, Object> row : gutenbergDao.search(query, limit)) {
+            for (final Map<String, Object> row : gutenbergRows(query, limit)) {
                 out.add(fromGutenberg(row));
             }
             return out;

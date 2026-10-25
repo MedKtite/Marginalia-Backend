@@ -60,6 +60,37 @@ public class GutenbergCatalogDaoImpl implements GutenbergCatalogDao {
     }
 
     @Override
+    public List<Map<String, Object>> advancedSearch(String text, String titleNorm,
+                                                    List<String> authorTokens,
+                                                    List<String> subjectTerms, int limit) {
+        final StringBuilder sql = new StringBuilder("""
+                SELECT g.gutenberg_id, g.title, g.authors, g.language, t.download_count
+                FROM gutenberg_catalog g
+                LEFT JOIN gutenberg_trending_books t ON t.gutenberg_id = g.gutenberg_id
+                WHERE TRUE
+                """);
+        final MapSqlParameterSource params = new MapSqlParameterSource().addValue("lim", limit);
+        if (text != null && !text.isBlank()) {
+            sql.append(" AND g.search_tsv @@ plainto_tsquery('simple', :text)");
+            params.addValue("text", text);
+        }
+        if (titleNorm != null && !titleNorm.isBlank()) {
+            sql.append(" AND g.title_norm LIKE :title");
+            params.addValue("title", "%" + titleNorm + "%");
+        }
+        if (authorTokens != null && !authorTokens.isEmpty()) {
+            sql.append(" AND g.authors ILIKE ALL (ARRAY[:authors])");
+            params.addValue("authors", authorTokens.stream().map(a -> "%" + a + "%").toList());
+        }
+        if (subjectTerms != null && !subjectTerms.isEmpty()) {
+            sql.append(" AND g.subjects ILIKE ANY (ARRAY[:subjects])");
+            params.addValue("subjects", subjectTerms.stream().map(s -> "%" + s + "%").toList());
+        }
+        sql.append(" ORDER BY t.rank NULLS LAST, (g.language = 'en') DESC, g.gutenberg_id LIMIT :lim");
+        return jdbc.queryForList(sql.toString(), params);
+    }
+
+    @Override
     public List<Map<String, Object>> findByTitleNorm(String titleNorm) {
         final String sql = """
                 SELECT gutenberg_id, title, authors, language

@@ -70,9 +70,10 @@ public class CatalogController {
 
     @GetMapping("/lookup")
     public ResponseEntity<CatalogVolumeResponse> lookup(
-            @RequestParam String title,
-            @RequestParam(required = false) String author) {
-        final CatalogVolumeResponse v = catalogService.lookup(title, author);
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String author,
+            @RequestParam(required = false) Integer gutenbergId) {
+        final CatalogVolumeResponse v = catalogService.lookup(title, author, gutenbergId);
         return v == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(v);
     }
 

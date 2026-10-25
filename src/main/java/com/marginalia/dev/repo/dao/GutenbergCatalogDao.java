@@ -25,6 +25,17 @@ public interface GutenbergCatalogDao {
      */
     List<Map<String, Object>> search(String query, int limit);
 
+    /**
+     * Field-scoped search for Discovery filters and category chips. Every
+     * non-empty criterion must match: [text] full-text, [titleNorm] substring
+     * of the normalized title, all [authorTokens] in authors, any of
+     * [subjectTerms] in subjects. Popular (trending) titles rank first; rows
+     * also carry download_count when trending.
+     */
+    List<Map<String, Object>> advancedSearch(String text, String titleNorm,
+                                             List<String> authorTokens,
+                                             List<String> subjectTerms, int limit);
+
     /** Rows whose normalized title equals [titleNorm] (small candidate set). */
     List<Map<String, Object>> findByTitleNorm(String titleNorm);
 
