@@ -52,10 +52,10 @@ public class AccountEmailService {
     @Value("${app.open-url:https://readsake.io}")
     private String openUrl;
 
-    public AccountEmailService(RestClient.Builder restClientBuilder,
-                               @Value("${brevo.api-url:https://api.brevo.com/v3}") String apiUrl,
+    public AccountEmailService(@Value("${brevo.api-url:https://api.brevo.com/v3}") String apiUrl,
                                @Value("${brevo.api-key:}") String apiKey) throws IOException {
-        this.restClient = restClientBuilder.baseUrl(apiUrl).build();
+        // Spring Boot 4 only auto-configures a RestClient.Builder with spring-boot-restclient; this is enough
+        this.restClient = RestClient.builder().baseUrl(apiUrl).build();
         this.apiKey = apiKey;
         ClassPathResource ids = new ClassPathResource("email/brevo-templates.properties");
         if (ids.exists()) {
