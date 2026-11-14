@@ -3,8 +3,11 @@
 # The backend image comes from .github/workflows/deploy.yml. Secrets: .env next
 # to this file on the server (template: deploy/.env.example).
 #
-# HTTPS is handled by the Caddy already running in /opt/ancora: backend and s3
-# also join its network (ancora_default) so Caddy reaches them by alias.
+# HTTPS is handled by the Caddy already running in /opt/ancora: the backend also
+# joins its network (ancora_default) so Caddy reaches it by alias.
+#
+# No book files live on this server: uploads and ingestion output go to
+# Cloudflare R2 (S3_* in .env). The VPS only holds the database.
 name: readsake
 
 services:
@@ -26,20 +29,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  # S3-compatible store (MinIO API). Public at s3.readsake.io for presigned URLs.
-  s3:
-    image: rustfs/rustfs:latest
-    restart: unless-stopped
-    environment:
-      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:?}
-      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:?}
-    volumes:
-      - s3_data:/data
+    # The backend also sits on ancora_default, where Ancora's own Postgres
+    # answers to `db` — so it must use this unique name instead.
     networks:
       default:
-      edge:
-        aliases: [readsake-s3]
+        aliases: [readsake-db]
+
 
   backend:
     image: ghcr.io/medktite/readsake-backend:${BACKEND_TAG:-latest}
@@ -47,9 +42,7 @@ services:
     env_file: .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:postgresql://db:5432/${DB_NAME}
-      S3_ENDPOINT: https://s3.readsake.io
-      S3_INTERNAL_ENDPOINT: http://s3:9000
+      DB_URL: jdbc:postgresql://readsake-db:5432/${DB_NAME}
       FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-}
       JAVA_OPTS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
     mem_limit: 1g
@@ -70,4 +63,3 @@ networks:
 
 volumes:
   postgres_data:
-  s3_data:

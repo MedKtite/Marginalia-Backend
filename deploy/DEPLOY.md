@@ -8,20 +8,26 @@ push to prod ─▶ GitHub Actions: test (mvn verify) ─▶ build image ─▶ 
 ```
 
 Server: the Ancora VPS (`ssh ancora`, 2.24.59.205). Readsake has its own compose
-project in `/opt/readsake` (db, s3, backend). HTTPS comes from the Caddy that
-already runs in `/opt/ancora`; Readsake's backend and s3 join its network
-(`ancora_default`) so Caddy can reach them as `readsake-backend` / `readsake-s3`.
+project in `/opt/readsake` (db, backend). HTTPS comes from the Caddy that
+already runs in `/opt/ancora`; the backend joins its network (`ancora_default`)
+so Caddy can reach it as `readsake-backend`. On that network Ancora's Postgres
+answers to `db`, so the backend reaches its own database as `readsake-db`.
+
+Book files are **not** on the VPS: they live in Cloudflare R2 (bucket
+`readsake-books`); phones download them with presigned URLs and keep a local
+copy. The VPS only holds the database.
 
 | URL | Goes to |
 |---|---|
 | https://api.readsake.io | backend :8080 |
-| https://s3.readsake.io  | RustFS :9000 (presigned upload/download URLs) |
 | 127.0.0.1:5441 on the VPS | Postgres (SSH tunnel only) |
 
 ## One-time setup
 
-1. **DNS** (Cloudflare): `A api → 2.24.59.205` and `A s3 → 2.24.59.205`, **DNS only
-   (grey cloud)** so Caddy can get its own certificates.
+1. **DNS** (Cloudflare): `A api → 2.24.59.205`, **DNS only (grey cloud)** so Caddy
+   can get its own certificate.
+1b. **R2** (Cloudflare → R2): create bucket `readsake-books`, then an API token with
+   *Object Read & Write* on that bucket only. Its keys and endpoint go in `.env`.
 2. **Folder**: `ssh -t ancora 'sudo install -d -o medktite -g medktite /opt/readsake /opt/readsake/secrets'`
 3. **Secrets**: copy `deploy/.env.example` to `/opt/readsake/.env`, fill it, `chmod 600`.
 4. **Caddy**: append to `/opt/ancora/Caddyfile`, then
@@ -29,10 +35,6 @@ already runs in `/opt/ancora`; Readsake's backend and s3 join its network
    ```
    api.readsake.io {
    	reverse_proxy readsake-backend:8080
-   }
-
-   s3.readsake.io {
-   	reverse_proxy readsake-s3:9000
    }
    ```
 5. **GitHub secrets** (repo → Settings → Secrets → Actions, environment `production`):
