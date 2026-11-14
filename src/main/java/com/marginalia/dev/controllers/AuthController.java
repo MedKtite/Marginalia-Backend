@@ -97,7 +97,7 @@ public class AuthController {
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Email Verified — Marginalia</title>
+                    <title>Email confirmed — Readsake</title>
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <style>
                         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, serif; background: #FAF8F5; color: #1C1C1E; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
@@ -108,8 +108,8 @@ public class AuthController {
                 </head>
                 <body>
                     <div class="card">
-                        <h1>Email Verified</h1>
-                        <p>Your email address has been successfully verified. You can return to the Marginalia app.</p>
+                        <h1>Email confirmed</h1>
+                        <p>Your email address has been successfully verified. You can return to the Readsake app.</p>
                     </div>
                 </body>
                 </html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!-- Brevo template "Readsake · ACCOUNT_DELETED" · design: 05 (Figma "Readsake · Emails") · service email
+     Params: email. Edit here, then re-run upload_to_brevo.py. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Your Readsake account has been deleted</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+@media only screen and (max-width: 600px) {
+  .email-shell { padding: 28px 12px !important; }
+  .email-card { padding: 28px 24px !important; }
+}
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#FAF8F5;">
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">Your library, highlights and notes have been removed.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF8F5;">
+  <tr>
+    <td align="center">
+      <table role="presentation" class="email-shell" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px; padding:40px 32px; font-family:Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <tr>
+          <td align="center" style="padding:0 0 28px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <!--logo--><td><img src="%%LOGO_URL%%" width="129" height="30" alt="Readsake" style="display:block; border:0; width:129px; height:30px;"></td><!--/logo-->
+                <!--wordmark--><td style="font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-size:22px; line-height:28px; font-weight:500; letter-spacing:-0.4px; color:#1C1C1E;">Readsake</td><!--/wordmark-->
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td class="email-card" style="background-color:#FFFFFF; border:1px solid #EAE8E4; border-radius:12px; padding:40px;">
+            <p style="margin:0 0 16px 0; font-family:Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:10px; line-height:14px; font-weight:500; letter-spacing:1.6px; text-transform:uppercase; color:#3E5C76;">Account</p>
+            <p style="margin:0 0 20px 0; font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-size:30px; line-height:34px; font-weight:500; letter-spacing:-0.6px; color:#1C1C1E;">Your account has been deleted</p>
+            <p style="margin:0 0 20px 0; font-size:16px; line-height:24px; color:#6E6D6B;">As you asked, we&rsquo;ve deleted the Readsake account for {{ params.email }}, along with your library, highlights and notes.</p>
+            <div style="margin:0 0 20px 0; padding:14px 16px; border-radius:8px; background-color:#EFF2F4; font-size:14px; line-height:20px; color:#1C1C1E;">Deleting your account doesn&rsquo;t cancel a subscription. If you have one, cancel it in your App Store or Google Play subscriptions.</div>
+            <p style="margin:0 0 20px 0; font-size:16px; line-height:24px; color:#6E6D6B;">You&rsquo;re welcome back any time with a new account.</p>
+            <div style="height:1px; line-height:1px; font-size:1px; background-color:#F2EFE9; margin:0 0 20px 0;">&nbsp;</div>
+            <p style="margin:0; font-size:12px; line-height:18px; color:#6E6D6B;">Didn&rsquo;t ask for this? Email <a href="mailto:support@readsake.io" style="color:#3E5C76;">support@readsake.io</a> right away.</p>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:28px 16px 0 16px; font-size:12px; line-height:18px; color:#6E6D6B; text-align:center;">
+            <p style="margin:0 0 8px 0; font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-style:italic; font-size:14px; line-height:20px; color:#6E6D6B;">For reading&rsquo;s sake.</p>
+            <p style="margin:0 0 8px 0;">You&rsquo;re receiving this service email because of your Readsake account{% if params.email %}, {{ params.email }}{% endif %}. It can&rsquo;t be turned off.</p>
+            <p style="margin:0 0 8px 0;">Help: <a href="mailto:support@readsake.io" style="color:#6E6D6B;">support@readsake.io</a></p>
+            <p style="margin:0; color:#A3A2A0;">Readsake &middot; <a href="https://readsake.io" style="color:#A3A2A0; text-decoration:none;">readsake.io</a></p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,6 @@
+Event,Brevo template name,Subject,Params,Figma design,HTML file
+VERIFY_EMAIL,Readsake · VERIFY_EMAIL,Confirm your email for Readsake,email link name,01,brevo/en/VERIFY_EMAIL.html
+WELCOME,Readsake · WELCOME,Welcome to Readsake,email link name,02,brevo/en/WELCOME.html
+PASSWORD_RESET,Readsake · PASSWORD_RESET,Reset your Readsake password,email link,03,brevo/en/PASSWORD_RESET.html
+PASSWORD_CHANGED,Readsake · PASSWORD_CHANGED,Your Readsake password was changed,email when,04,brevo/en/PASSWORD_CHANGED.html
+ACCOUNT_DELETED,Readsake · ACCOUNT_DELETED,Your Readsake account has been deleted,email,05,brevo/en/ACCOUNT_DELETED.html

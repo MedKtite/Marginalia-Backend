@@ -41,12 +41,27 @@ copy. The VPS only holds the database.
    `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (private key whose public half is in the
    VPS `~/.ssh/authorized_keys`), `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan 2.24.59.205`).
 6. **First deploy**: push to `prod` (or Actions → *Build & deploy backend* → Run workflow on `prod`).
-7. **Schema**, from the umbrella repo root once the db container is up:
+7. **Schema**, from the umbrella repo root once the db container is up (backend and
+   ingestion migrations share one database and must run interleaved in this order):
    ```bash
-   ssh ancora 'cd /opt/readsake && docker compose exec -T db psql -U readsake -d readsake' < marginalia-db/schema.sql
-   for f in marginalia-db/migrations/*.sql; do
-     ssh ancora 'cd /opt/readsake && docker compose exec -T db psql -U readsake -d readsake -v ON_ERROR_STOP=1' < "$f"
-   done
+   run() { ssh ancora 'cd /opt/readsake && docker compose exec -T db psql -q -U readsake -d readsake -v ON_ERROR_STOP=1' < "$1" && echo "ok  $1" || { echo "FAIL $1"; return 1; }; }
+   # Order matters: backend 002 needs columns from ingestion 003/004_uploaded_documents,
+   # and ingestion 004_gutenberg_native_reader needs 004_uploaded_documents first.
+   for f in marginalia-db/schema.sql \
+     marginalia-db/migrations/001_password_reset_tokens.sql \
+     marginalia-ingestion/migrations/001_audiobooks.sql \
+     marginalia-ingestion/migrations/002_ingestion_jobs.sql \
+     marginalia-ingestion/migrations/003_gutenberg_reader.sql \
+     marginalia-ingestion/migrations/004_uploaded_documents.sql \
+     marginalia-ingestion/migrations/004_gutenberg_native_reader.sql \
+     marginalia-ingestion/migrations/005_gutenberg_trending.sql \
+     marginalia-db/migrations/002_gutenberg_native_reader.sql \
+     marginalia-db/migrations/003_gutenberg_trending.sql \
+     marginalia-db/migrations/004_user_notifications_inbox.sql \
+     marginalia-db/migrations/005_user_avatar.sql \
+     marginalia-db/migrations/006_email_verification_tokens.sql \
+     marginalia-db/migrations/007_catalog_lookup_cache.sql
+   do run "$f" || break; done
    ```
    New migrations later: run only the new file the same way.
 

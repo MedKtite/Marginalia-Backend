@@ -44,13 +44,10 @@ public class AuthServiceImpl implements AuthService {
     private PasswordResetTokenDao passwordResetTokenDao;
 
     @Autowired
-    private PasswordResetEmailService passwordResetEmailService;
-
-    @Autowired
     private EmailVerificationTokenDao emailVerificationTokenDao;
 
     @Autowired
-    private EmailVerificationService emailVerificationService;
+    private AccountEmailService accountEmailService;
 
     @Autowired
     private JwtService jwtService;
@@ -93,7 +90,7 @@ public class AuthServiceImpl implements AuthService {
                     saved.getId(),
                     sha256(rawToken),
                     OffsetDateTime.now().plusHours(24));
-            emailVerificationService.sendVerificationEmail(saved.getEmail(), rawToken, saved.getDisplayName());
+            accountEmailService.sendVerification(saved.getEmail(), saved.getDisplayName(), rawToken);
 
             return saved;
         } catch (DuplicateKeyException e) {
@@ -166,6 +163,9 @@ public class AuthServiceImpl implements AuthService {
             User saved = userDao.insert(u);
             issueTokens(saved, response);
             response.setHeader("X-Marginalia-Account", "created");
+            if (email != null) {
+                accountEmailService.sendWelcome(saved.getEmail(), saved.getDisplayName());
+            }
             return saved;
         } catch (DuplicateKeyException e) {
             throw new ConflictException("Account already exists");
@@ -233,7 +233,7 @@ public class AuthServiceImpl implements AuthService {
                 found.get().getId(),
                 sha256(rawToken),
                 OffsetDateTime.now().plusMinutes(30));
-        passwordResetEmailService.send(email, rawToken);
+        accountEmailService.sendPasswordReset(email, rawToken);
     }
 
     @Override
@@ -243,6 +243,8 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BadRequestException(
                         "This recovery link is invalid or has expired."));
         userDao.updatePassword(userId, passwordEncoder.encode(req.getPassword()));
+        userDao.findById(userId).ifPresent(u ->
+                accountEmailService.sendPasswordChanged(u.getEmail(), u.getTimezone()));
     }
 
     @Override
@@ -255,6 +257,9 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BadRequestException(
                         "This verification link is invalid or has expired."));
         userDao.updateEmailVerified(userId, true);
+        // Tokens are single use, so this runs once per account
+        userDao.findById(userId).ifPresent(u ->
+                accountEmailService.sendWelcome(u.getEmail(), u.getDisplayName()));
     }
 
     @Override
@@ -273,7 +278,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getId(),
                 sha256(rawToken),
                 OffsetDateTime.now().plusHours(24));
-        emailVerificationService.sendVerificationEmail(user.getEmail(), rawToken, user.getDisplayName());
+        accountEmailService.sendVerification(user.getEmail(), user.getDisplayName(), rawToken);
     }
 
     // ─────────────────────────────────────────────────────────────────────

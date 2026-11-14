@@ -6,6 +6,7 @@ import com.marginalia.dev.dto.profile.ProfileUpdateRequest;
 import com.marginalia.dev.entities.User;
 import com.marginalia.dev.repo.dao.UserDao;
 import com.marginalia.dev.security.CustomUserDetails;
+import com.marginalia.dev.services.AccountEmailService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,9 @@ public class ProfileController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private AccountEmailService accountEmailService;
 
     @GetMapping("/profile")
     public ResponseEntity<UserResponse> getProfile(@AuthenticationPrincipal CustomUserDetails me) {
@@ -63,6 +67,7 @@ public class ProfileController {
 
         String newHash = passwordEncoder.encode(req.getNewPassword());
         userDao.updatePassword(me.getUserId(), newHash);
+        accountEmailService.sendPasswordChanged(u.getEmail(), u.getTimezone());
 
         return ResponseEntity.ok(Map.of("message", "Password updated successfully."));
     }
@@ -100,10 +105,13 @@ public class ProfileController {
 
     @DeleteMapping
     public ResponseEntity<Void> deleteAccount(@AuthenticationPrincipal CustomUserDetails me) {
+        User u = userDao.findById(me.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         boolean deleted = userDao.delete(me.getUserId());
         if (!deleted) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
+        accountEmailService.sendAccountDeleted(u.getEmail());
         return ResponseEntity.noContent().build();
     }
 }

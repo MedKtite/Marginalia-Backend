@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!-- Brevo template "Readsake · WELCOME" · design: 02 (Figma "Readsake · Emails") · service email
+     Params: email, link, name. Edit here, then re-run upload_to_brevo.py. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>Welcome to Readsake</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+@media only screen and (max-width: 600px) {
+  .email-shell { padding: 28px 12px !important; }
+  .email-card { padding: 28px 24px !important; }
+}
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#FAF8F5;">
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">Your 7-day free trial starts today.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FAF8F5;">
+  <tr>
+    <td align="center">
+      <table role="presentation" class="email-shell" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px; padding:40px 32px; font-family:Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <tr>
+          <td align="center" style="padding:0 0 28px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0">
+              <tr>
+                <!--logo--><td><img src="%%LOGO_URL%%" width="129" height="30" alt="Readsake" style="display:block; border:0; width:129px; height:30px;"></td><!--/logo-->
+                <!--wordmark--><td style="font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-size:22px; line-height:28px; font-weight:500; letter-spacing:-0.4px; color:#1C1C1E;">Readsake</td><!--/wordmark-->
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td class="email-card" style="background-color:#FFFFFF; border:1px solid #EAE8E4; border-radius:12px; padding:40px;">
+            <p style="margin:0 0 16px 0; font-family:Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:10px; line-height:14px; font-weight:500; letter-spacing:1.6px; text-transform:uppercase; color:#3E5C76;">Welcome</p>
+            <p style="margin:0 0 20px 0; font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-size:30px; line-height:34px; font-weight:500; letter-spacing:-0.6px; color:#1C1C1E;">Your library is open{% if params.name %}, {{ params.name }}{% endif %}.</p>
+            <p style="margin:0 0 20px 0; font-size:16px; line-height:24px; color:#6E6D6B;">Thanks for joining Readsake. Your 7-day free trial starts today. Here&rsquo;s a good way to spend it:</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 4px 0;">
+              <tr>
+                <td valign="top" style="width:28px; padding:0 0 18px 0; font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-size:24px; line-height:26px; font-weight:500; color:#3E5C76;">1</td>
+                <td valign="top" style="padding:0 0 18px 0;">
+                  <p style="margin:0 0 2px 0; font-size:15px; line-height:21px; font-weight:600; color:#1C1C1E;">Pick a book</p>
+                  <p style="margin:0; font-size:14px; line-height:20px; color:#6E6D6B;">Thousands of classics are free to read and listen to, and you can bring your own EPUB and PDF files.</p>
+                </td>
+              </tr>
+              <tr>
+                <td valign="top" style="width:28px; padding:0 0 18px 0; font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-size:24px; line-height:26px; font-weight:500; color:#3E5C76;">2</td>
+                <td valign="top" style="padding:0 0 18px 0;">
+                  <p style="margin:0 0 2px 0; font-size:15px; line-height:21px; font-weight:600; color:#1C1C1E;">Highlight what stays with you</p>
+                  <p style="margin:0; font-size:14px; line-height:20px; color:#6E6D6B;">Tag a passage as curious, beautiful, or one to revisit.</p>
+                </td>
+              </tr>
+              <tr>
+                <td valign="top" style="width:28px; padding:0 0 18px 0; font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-size:24px; line-height:26px; font-weight:500; color:#3E5C76;">3</td>
+                <td valign="top" style="padding:0 0 18px 0;">
+                  <p style="margin:0 0 2px 0; font-size:15px; line-height:21px; font-weight:600; color:#1C1C1E;">Come back to it</p>
+                  <p style="margin:0; font-size:14px; line-height:20px; color:#6E6D6B;">Your highlights and notes sync, so nothing gets lost between devices.</p>
+                </td>
+              </tr>
+            </table>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0;">
+              <tr>
+                <td style="background-color:#3E5C76; border-radius:8px;">
+                  <a href="{{ params.link }}" style="display:inline-block; padding:14px 24px; font-size:15px; line-height:20px; font-weight:600; color:#FFFFFF; text-decoration:none; white-space:nowrap;">Open Readsake</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:28px 16px 0 16px; font-size:12px; line-height:18px; color:#6E6D6B; text-align:center;">
+            <p style="margin:0 0 8px 0; font-family:'Source Serif 4', Georgia, 'Times New Roman', serif; font-style:italic; font-size:14px; line-height:20px; color:#6E6D6B;">For reading&rsquo;s sake.</p>
+            <p style="margin:0 0 8px 0;">You&rsquo;re receiving this service email because of your Readsake account{% if params.email %}, {{ params.email }}{% endif %}. It can&rsquo;t be turned off.</p>
+            <p style="margin:0 0 8px 0;">Help: <a href="mailto:support@readsake.io" style="color:#6E6D6B;">support@readsake.io</a></p>
+            <p style="margin:0; color:#A3A2A0;">Readsake &middot; <a href="https://readsake.io" style="color:#A3A2A0; text-decoration:none;">readsake.io</a></p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
