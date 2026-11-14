@@ -1,0 +1,73 @@
+# Readsake production on the Ancora VPS, in /opt/readsake (see deploy/DEPLOY.md).
+# The CI copies this file to the server on every deploy — edit it here, not there.
+# The backend image comes from .github/workflows/deploy.yml. Secrets: .env next
+# to this file on the server (template: deploy/.env.example).
+#
+# HTTPS is handled by the Caddy already running in /opt/ancora: backend and s3
+# also join its network (ancora_default) so Caddy reaches them by alias.
+name: readsake
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:?}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?}
+      POSTGRES_DB: ${DB_NAME:?}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C.UTF-8"
+    # Only from the server itself (psql through an SSH tunnel). 5432 is Ancora's.
+    ports:
+      - "127.0.0.1:5441:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # S3-compatible store (MinIO API). Public at s3.readsake.io for presigned URLs.
+  s3:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:?}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:?}
+    volumes:
+      - s3_data:/data
+    networks:
+      default:
+      edge:
+        aliases: [readsake-s3]
+
+  backend:
+    image: ghcr.io/medktite/readsake-backend:${BACKEND_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME}
+      S3_ENDPOINT: https://s3.readsake.io
+      S3_INTERNAL_ENDPOINT: http://s3:9000
+      FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-}
+      JAVA_OPTS: -XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError
+    mem_limit: 1g
+    volumes:
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      edge:
+        aliases: [readsake-backend]
+
+networks:
+  edge:
+    name: ancora_default
+    external: true
+
+volumes:
+  postgres_data:
+  s3_data:

@@ -53,7 +53,9 @@ public class SecurityConfig {
         CorsConfiguration cfg = new CorsConfiguration();
         cfg.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
-                "https://*.marginalia.app"
+                "https://*.marginalia.app",
+                "https://readsake.io",
+                "https://*.readsake.io"
         ));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
