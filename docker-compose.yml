@@ -1,51 +1,51 @@
-# Marginalia — local Postgres + MinIO (S3-compatible)
+# Readsake — local Postgres + MinIO (S3-compatible)
 #
 # Pure local-dev config. All values are baked into this file — no .env
 # indirection. Edit here if you want to change a port or credential.
 #
 # Run all `docker compose ...` commands from this directory
-# (marginalia-backend/dev/), not the repo root.
+# (readsake-backend/dev/), not the repo root.
 #
 # Quick start:
 #   docker compose up -d                    # start Postgres + MinIO
 #
 #   # Apply schema — pick the form for your shell:
 #   #   PowerShell:
-#   Get-Content ../../marginalia-db/schema.sql | docker compose exec -T postgres psql -U marginalia -d marginalia
+#   Get-Content ../../readsake-db/schema.sql | docker compose exec -T postgres psql -U readsake -d readsake
 #   #   bash / Git Bash / cmd:
-#   docker compose exec -T postgres psql -U marginalia -d marginalia < ../../marginalia-db/schema.sql
+#   docker compose exec -T postgres psql -U readsake -d readsake < ../../readsake-db/schema.sql
 #
 #   docker compose down                     # stop (keeps data)
 #   docker compose down -v                  # stop AND wipe data
 #
 # Reachable on:
-#   localhost:5440   Postgres   user: marginalia / pwd: Ktite@2030% / db: marginalia
+#   localhost:5440   Postgres   user: readsake / pwd: Ktite@2030% / db: readsake
 #   localhost:9000   MinIO S3 API
 #   localhost:9001   MinIO console     login: minioadmin / minioadmin
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: marginalia-db
+    container_name: readsake-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: marginalia
+      POSTGRES_USER: readsake
       POSTGRES_PASSWORD: Ktite@2030%
-      POSTGRES_DB: marginalia
+      POSTGRES_DB: readsake
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C.UTF-8"
     ports:
       - "5440:5432"
     volumes:
-      - marginalia_db:/var/lib/postgresql/data
+      - readsake_db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U marginalia -d marginalia"]
+      test: ["CMD-SHELL", "pg_isready -U readsake -d readsake"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   minio:
     image: minio/minio:latest
-    container_name: marginalia-minio
+    container_name: readsake-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -55,7 +55,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - marginalia_minio:/data
+      - readsake_minio:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -64,9 +64,9 @@ services:
 
   ingestion:
     build:
-      context: ../../marginalia-ingestion
+      context: ../../readsake-ingestion
       dockerfile: Dockerfile
-    container_name: marginalia-ingestion
+    container_name: readsake-ingestion
     restart: unless-stopped
     depends_on:
       postgres:
@@ -74,10 +74,10 @@ services:
       minio:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://marginalia:Ktite%402030%25@postgres:5432/marginalia
+      DATABASE_URL: postgresql://readsake:Ktite%402030%25@postgres:5432/readsake
       STORAGE_BACKEND: s3
       S3_ENDPOINT: http://minio:9000
-      S3_BUCKET: marginalia-uploads
+      S3_BUCKET: readsake-uploads
       S3_ACCESS_KEY_ID: minioadmin
       S3_SECRET_ACCESS_KEY: minioadmin
       S3_REGION: us-east-1
@@ -85,6 +85,6 @@ services:
       LOG_LEVEL: INFO
 
 volumes:
-  marginalia_db:
-  marginalia_minio:
+  readsake_db:
+  readsake_minio:
 

@@ -9,11 +9,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.marginalia</groupId>
+    <groupId>com.readsake</groupId>
     <artifactId>dev</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>dev</name>
-    <description>Marginalia backend</description>
+    <description>Readsake backend</description>
 
     <properties>
         <java.version>17</java.version>

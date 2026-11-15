@@ -47,20 +47,20 @@ copy. The VPS only holds the database.
    run() { ssh ancora 'cd /opt/readsake && docker compose exec -T db psql -q -U readsake -d readsake -v ON_ERROR_STOP=1' < "$1" && echo "ok  $1" || { echo "FAIL $1"; return 1; }; }
    # Order matters: backend 002 needs columns from ingestion 003/004_uploaded_documents,
    # and ingestion 004_gutenberg_native_reader needs 004_uploaded_documents first.
-   for f in marginalia-db/schema.sql \
-     marginalia-db/migrations/001_password_reset_tokens.sql \
-     marginalia-ingestion/migrations/001_audiobooks.sql \
-     marginalia-ingestion/migrations/002_ingestion_jobs.sql \
-     marginalia-ingestion/migrations/003_gutenberg_reader.sql \
-     marginalia-ingestion/migrations/004_uploaded_documents.sql \
-     marginalia-ingestion/migrations/004_gutenberg_native_reader.sql \
-     marginalia-ingestion/migrations/005_gutenberg_trending.sql \
-     marginalia-db/migrations/002_gutenberg_native_reader.sql \
-     marginalia-db/migrations/003_gutenberg_trending.sql \
-     marginalia-db/migrations/004_user_notifications_inbox.sql \
-     marginalia-db/migrations/005_user_avatar.sql \
-     marginalia-db/migrations/006_email_verification_tokens.sql \
-     marginalia-db/migrations/007_catalog_lookup_cache.sql
+   for f in readsake-db/schema.sql \
+     readsake-db/migrations/001_password_reset_tokens.sql \
+     readsake-ingestion/migrations/001_audiobooks.sql \
+     readsake-ingestion/migrations/002_ingestion_jobs.sql \
+     readsake-ingestion/migrations/003_gutenberg_reader.sql \
+     readsake-ingestion/migrations/004_uploaded_documents.sql \
+     readsake-ingestion/migrations/004_gutenberg_native_reader.sql \
+     readsake-ingestion/migrations/005_gutenberg_trending.sql \
+     readsake-db/migrations/002_gutenberg_native_reader.sql \
+     readsake-db/migrations/003_gutenberg_trending.sql \
+     readsake-db/migrations/004_user_notifications_inbox.sql \
+     readsake-db/migrations/005_user_avatar.sql \
+     readsake-db/migrations/006_email_verification_tokens.sql \
+     readsake-db/migrations/007_catalog_lookup_cache.sql
    do run "$f" || break; done
    ```
    New migrations later: run only the new file the same way.
