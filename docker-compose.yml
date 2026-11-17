@@ -76,7 +76,7 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-    environment:
+    environment: &ingestion-env
       DATABASE_URL: postgresql://readsake:Ktite%402030%25@postgres:5432/readsake
       STORAGE_BACKEND: s3
       S3_ENDPOINT: http://minio:9000
@@ -86,6 +86,19 @@ services:
       S3_REGION: us-east-1
       S3_FORCE_PATH_STYLE: "true"
       LOG_LEVEL: INFO
+
+  # Refreshes the Home "Trending" and "Top authors" snapshot every night.
+  discovery-sync:
+    build:
+      context: ../../readsake-ingestion
+      dockerfile: Dockerfile
+    container_name: readsake-discovery-sync
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: *ingestion-env
+    command: ["python", "-m", "ingestion.sync_gutenberg_trending", "--daily-at", "02:15"]
 
 volumes:
   readsake_db:

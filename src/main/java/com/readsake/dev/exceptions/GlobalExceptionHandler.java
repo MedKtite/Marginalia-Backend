@@ -13,6 +13,18 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> unavailable(ServiceUnavailableException e) {
+        var response = error(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+        return ResponseEntity.status(503).header("Retry-After", "60").body(response.getBody());
+    }
+
+    @ExceptionHandler(BookPreparingException.class)
+    public ResponseEntity<Map<String, Object>> preparing(BookPreparingException e) {
+        var response = error(HttpStatus.CONFLICT, e.getMessage());
+        return ResponseEntity.status(409).header("Retry-After", "5").body(response.getBody());
+    }
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<Map<String, Object>> notFound(NotFoundException e) {
         return error(HttpStatus.NOT_FOUND, e.getMessage());

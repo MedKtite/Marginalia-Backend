@@ -44,6 +44,7 @@ public interface GutenbergCatalogDao {
     List<Map<String, Object>> topAuthors(int limit);
 
     Optional<String> findReaderFileKey(int gutenbergId);
+    Optional<String> findReaderCoverKey(int gutenbergId);
 
     Optional<String> findReaderFileKeyByTitle(String title);
 

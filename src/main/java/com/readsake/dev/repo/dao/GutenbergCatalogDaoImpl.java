@@ -127,6 +127,12 @@ public class GutenbergCatalogDaoImpl implements GutenbergCatalogDao {
     }
 
     @Override
+    public Optional<String> findReaderCoverKey(int gutenbergId) {
+        return jdbc.queryForList("SELECT reader_cover_key FROM gutenberg_catalog WHERE gutenberg_id = :id AND reader_cover_key IS NOT NULL",
+                new MapSqlParameterSource("id", gutenbergId), String.class).stream().findFirst();
+    }
+
+    @Override
     public Optional<String> findReaderFileKey(int gutenbergId) {
         try {
             return Optional.ofNullable(jdbc.queryForObject(

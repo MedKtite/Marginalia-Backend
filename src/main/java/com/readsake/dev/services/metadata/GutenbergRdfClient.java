@@ -24,7 +24,8 @@ public class GutenbergRdfClient extends AbstractMetadataClient {
     public Optional<MetadataResult> findById(int gutenbergId) { try {
         HttpRequest request = HttpRequest.newBuilder()
                 // Direct cache path: /ebooks/{id}.rdf redirects https→http, which HttpClient won't follow.
-                .uri(URI.create("https://www.gutenberg.org/cache/epub/" + gutenbergId + "/pg" + gutenbergId + ".rdf"))
+                // PGLAF mirror: same files, stays up when www.gutenberg.org returns 503s.
+                .uri(URI.create("https://gutenberg.pglaf.org/cache/epub/" + gutenbergId + "/pg" + gutenbergId + ".rdf"))
                 .timeout(Duration.ofSeconds(5))
                 .header("User-Agent", "Readsake/1.0 (book metadata resolver)")
                 .GET()

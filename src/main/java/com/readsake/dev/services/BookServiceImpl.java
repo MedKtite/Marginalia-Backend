@@ -28,7 +28,6 @@ public class BookServiceImpl implements BookService {
 
     /** Free-tier book cap. */
     private static final int FREE_TIER_BOOK_LIMIT = 3;
-    private static final String GUTENBERG_READER_KEY_SUFFIX = "/reader-v5.zip";
 
     @Autowired
     private BookDao bookDao;
@@ -52,13 +51,13 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public List<Book> listForUser(UUID userId, String status) {
-        return bookDao.findByUser(userId, status);
+        return bookDao.findByUser(userId, status).stream().map(this::withReaderAvailability).toList();
     }
 
     @Override
     public Book getOne(UUID id, UUID userId) {
-        return bookDao.findByIdAndUser(id, userId)
-                .orElseThrow(() -> new NotFoundException("Book not found"));
+        return withReaderAvailability(bookDao.findByIdAndUser(id, userId)
+                .orElseThrow(() -> new NotFoundException("Book not found")));
     }
 
     @Override
@@ -219,9 +218,19 @@ public class BookServiceImpl implements BookService {
             final String catalogReaderKey = gutenbergCatalogDao
                     .findReaderFileKey(gutenbergId)
                     .orElse(null);
-            if (catalogReaderKey == null || !catalogReaderKey.endsWith(GUTENBERG_READER_KEY_SUFFIX)) {
+            // Keep serving an existing edition during upstream outages or upgrades.
+            if (catalogReaderKey == null || catalogReaderKey.isBlank()) {
+                var latest = ingestionJobDao.latestForSource("GUTENBERG_READER", String.valueOf(gutenbergId));
+                boolean coolingDown = latest.isPresent() && "failed".equals(latest.get().getStatus())
+                        && latest.get().getFinishedAt() != null
+                        && latest.get().getFinishedAt().isAfter(java.time.OffsetDateTime.now().minusMinutes(15));
+                if (ingestionJobDao.gutenbergUnavailable() || coolingDown) {
+                    throw new com.readsake.dev.exceptions.ServiceUnavailableException(
+                            "The book provider is temporarily unavailable. This book cannot be prepared right now. Please try again later.");
+                }
                 enqueueGutenbergReader(b);
-                throw new NotFoundException("Preparing the latest readable edition.");
+                throw new com.readsake.dev.exceptions.BookPreparingException(
+                        "This book is being prepared. Please try again shortly.");
             }
             log.debug("Reading Gutenberg package book={} gutenbergId={} readerKey={}",
                     b.getId(), gutenbergId, catalogReaderKey);
@@ -241,6 +250,23 @@ public class BookServiceImpl implements BookService {
             throw new NotFoundException("This book has no readable file.");
         }
         return new BookService.ReadingDownload(storage.presignDownload(b.getFileKey()), b.getFormat());
+    }
+
+    private Book withReaderAvailability(Book book) {
+        if (book.getGutenbergId() == null) return book;
+        var stored = gutenbergCatalogDao.findReaderFileKey(book.getGutenbergId());
+        if (stored.isPresent()) {
+            book.setReadingFileKey(stored.get());
+            book.setProcessingStatus("ready");
+            book.setProcessingError(null);
+            if (gutenbergCatalogDao.findReaderCoverKey(book.getGutenbergId()).isPresent()) {
+                book.setCoverUrl("/covers/gutenberg/" + book.getGutenbergId());
+            }
+        } else if (ingestionJobDao.gutenbergUnavailable()) {
+            book.setProcessingStatus("failed");
+            book.setProcessingError("The book provider is temporarily unavailable. Please try again later.");
+        }
+        return book;
     }
 
     private void enqueueGutenbergReader(Book book) {

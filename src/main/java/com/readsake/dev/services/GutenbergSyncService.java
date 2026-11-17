@@ -42,7 +42,7 @@ public class GutenbergSyncService {
     private static final int COL_ID = 0, COL_TYPE = 1, COL_TITLE = 3,
             COL_LANGUAGE = 4, COL_AUTHORS = 5, COL_SUBJECTS = 6;
 
-    @Value("${gutenberg.catalog-url:https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv}")
+    @Value("${gutenberg.catalog-url:https://gutenberg.pglaf.org/cache/epub/feeds/pg_catalog.csv}")
     private String catalogUrl;
 
     @Autowired

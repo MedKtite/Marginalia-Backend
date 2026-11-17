@@ -32,6 +32,25 @@ import java.util.concurrent.TimeUnit;
 @RestController
 public class CoverProxyController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.readsake.dev.repo.dao.GutenbergCatalogDao catalog;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.readsake.dev.services.FileStorageService storage;
+
+    @GetMapping("/covers/gutenberg/{id}")
+    public ResponseEntity<byte[]> storedCover(@org.springframework.web.bind.annotation.PathVariable int id) {
+        var key = catalog.findReaderCoverKey(id);
+        if (storage == null || key.isEmpty()) return ResponseEntity.notFound().build();
+        try {
+            byte[] bytes = storage.readObject(key.get());
+            if (bytes == null || bytes.length == 0) return ResponseEntity.notFound().build();
+            return ok(new CachedCover(bytes, "image/jpeg"));
+        } catch (Exception e) {
+            log.warn("Stored Gutenberg cover unavailable id={}", id);
+            return ResponseEntity.status(503).build();
+        }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(CoverProxyController.class);
 
     private static final String USER_AGENT =
@@ -104,11 +123,13 @@ public class CoverProxyController {
     }
 
     private static boolean isAllowedHost(String host) {
-        return host.equals("books.google.com")
+        return host.equals("covers.openlibrary.org")
+                || host.equals("books.google.com")
                 || host.endsWith(".google.com")
                 || host.endsWith(".googleusercontent.com")
                 || host.equals("www.gutenberg.org")
                 || host.endsWith(".gutenberg.org")
+                || host.equals("gutenberg.pglaf.org")
                 || host.equals("upload.wikimedia.org")
                 || host.endsWith(".wikimedia.org")
                 || host.endsWith(".wikipedia.org");

@@ -74,6 +74,8 @@ public class CatalogService {
 
     @Autowired
     private GutenbergCatalogDao gutenbergDao;
+    @Autowired
+    private com.readsake.dev.repo.dao.IngestionJobDao ingestionJobs;
 
     @Autowired
     private SearchQueryDao searchQueryDao;
@@ -139,7 +141,14 @@ public class CatalogService {
             if (items.size() >= max) break;
             if (seen.add(dedupeKey(g.getTitle(), g.getAuthor()))) items.add(g);
         }
-        return CatalogSearchResponse.of(query, partial, items);
+        var response = CatalogSearchResponse.of(query, partial, items);
+        if (ingestionJobs.gutenbergUnavailable()) {
+            response.setPartialResults(true);
+            response.setMessage("The book provider is temporarily unavailable. You can browse results, but new book downloads may be delayed.");
+        } else if (partial) {
+            response.setMessage("The search provider is temporarily unavailable. Showing available catalog results. Please try again later.");
+        }
+        return response;
     }
 
     /**
@@ -338,6 +347,8 @@ public class CatalogService {
      */
     public byte[] fetchGutenbergEpub(int gutenbergId) {
         final String[] candidates = {
+                "https://gutenberg.pglaf.org/cache/epub/" + gutenbergId + "/pg" + gutenbergId + ".epub",
+                "https://gutenberg.pglaf.org/cache/epub/" + gutenbergId + "/pg" + gutenbergId + "-images.epub",
                 "https://www.gutenberg.org/ebooks/" + gutenbergId + ".epub.noimages",
                 "https://www.gutenberg.org/ebooks/" + gutenbergId + ".epub.images",
         };
@@ -542,7 +553,7 @@ public class CatalogService {
         }
     }
 
-    private static CatalogVolumeResponse fromGutenberg(Map<String, Object> row) {
+    private CatalogVolumeResponse fromGutenberg(Map<String, Object> row) {
         final int id = ((Number) row.get("gutenberg_id")).intValue();
         final CatalogVolumeResponse r = new CatalogVolumeResponse();
         r.setSource(CatalogVolumeResponse.SOURCE_GUTENBERG);
@@ -551,7 +562,8 @@ public class CatalogService {
         r.setTitle((String) row.get("title"));
         r.setAuthor(TextNormalizer.displayAuthor((String) row.get("authors")));
         r.setLanguage((String) row.get("language"));
-        r.setThumbnailUrl(coverUrlFor(id));
+        r.setThumbnailUrl(gutenbergDao.findReaderCoverKey(id).isPresent()
+                ? "/covers/gutenberg/" + id : coverUrlFor(id));
         final Object downloadCount = row.get("download_count");
         if (downloadCount instanceof Number number) {
             r.setDownloadCount(number.intValue());
@@ -559,9 +571,12 @@ public class CatalogService {
         return r;
     }
 
-    /** Gutenberg's generated cover; the client falls back to a text cover on 404. */
+    /**
+     * Gutenberg's generated cover, served from PGLAF's mirror (www.gutenberg.org
+     * returns 503s under load); the client falls back to a text cover on 404.
+     */
     private static String coverUrlFor(int gutenbergId) {
-        return "https://www.gutenberg.org/cache/epub/" + gutenbergId
+        return "https://gutenberg.pglaf.org/cache/epub/" + gutenbergId
                 + "/pg" + gutenbergId + ".cover.medium.jpg";
     }
 
@@ -616,7 +631,7 @@ public class CatalogService {
 
     private List<CatalogVolumeResponse> fetchGoogle(String query, int max) throws Exception {
         if (Instant.now().isBefore(googleUnavailableUntil)) {
-            return List.of();
+            throw new IllegalStateException("Google Books is temporarily unavailable");
         }
         final StringBuilder url = new StringBuilder("https://www.googleapis.com/books/v1/volumes?q=")
                 .append(URLEncoder.encode(query, StandardCharsets.UTF_8))

@@ -11,6 +11,7 @@ public class CatalogSearchResponse {
 
     private String query;
     private boolean partialResults;
+    private String message;
     private List<CatalogVolumeResponse> items = List.of();
 
     public static CatalogSearchResponse of(String query, boolean partialResults,
@@ -21,6 +22,9 @@ public class CatalogSearchResponse {
         r.items = items;
         return r;
     }
+
+    public String getMessage() { return message; }
+    public void setMessage(String message) { this.message = message; }
 
     public String getQuery() { return query; }
     public void setQuery(String query) { this.query = query; }

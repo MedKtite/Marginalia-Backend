@@ -46,13 +46,15 @@ public class IngestionJobDaoImpl implements IngestionJobDao {
     @Override
     public boolean insertIfAbsent(UUID bookId, String jobType, String sourceKey, Map<String, Object> payload) {
         String sql = """
-                INSERT INTO ingestion_jobs (book_id, job_type, source_key, payload)
-                SELECT :bookId, :jobType, :sourceKey, CAST(:payload AS jsonb)
+                INSERT INTO ingestion_jobs (book_id, job_type, source_key, payload, max_attempts)
+                SELECT :bookId, :jobType, :sourceKey, CAST(:payload AS jsonb),
+                       CASE WHEN :jobType = 'GUTENBERG_READER' THEN 6 ELSE 3 END
                 WHERE NOT EXISTS (
                     SELECT 1 FROM ingestion_jobs
                     WHERE job_type = :jobType
                       AND source_key = :sourceKey
-                      AND status IN ('pending', 'processing')
+                      AND (status IN ('pending', 'processing')
+                           OR (status = 'failed' AND finished_at > NOW() - INTERVAL '15 minutes'))
                 )
                 """;
         return jdbc.update(sql, new MapSqlParameterSource()
@@ -65,6 +67,24 @@ public class IngestionJobDaoImpl implements IngestionJobDao {
         return jdbc.query("SELECT " + COLUMNS + " FROM ingestion_jobs WHERE id = :id AND book_id = :bookId",
                 new MapSqlParameterSource().addValue("id", id).addValue("bookId", bookId),
                 (rs, n) -> map(new ColumnMapRowMapper().mapRow(rs, n))).stream().findFirst();
+    }
+
+    @Override
+    public Optional<IngestionJob> latestForSource(String jobType, String sourceKey) {
+        return jdbc.query("SELECT " + COLUMNS + " FROM ingestion_jobs WHERE job_type = :type AND source_key = :key ORDER BY created_at DESC LIMIT 1",
+                new MapSqlParameterSource().addValue("type", jobType).addValue("key", sourceKey),
+                (rs, n) -> map(new ColumnMapRowMapper().mapRow(rs, n))).stream().findFirst();
+    }
+
+    @Override
+    public boolean gutenbergUnavailable() {
+        // A successful subsequent import clears the outage. No live probing per search.
+        return Boolean.TRUE.equals(jdbc.getJdbcOperations().queryForObject("""
+                SELECT COALESCE((SELECT error_message LIKE 'SOURCE_UNAVAILABLE:%'
+                    FROM ingestion_jobs WHERE job_type = 'GUTENBERG_READER'
+                    AND COALESCE(finished_at, started_at) > NOW() - INTERVAL '15 minutes'
+                    ORDER BY COALESCE(finished_at, started_at) DESC LIMIT 1), FALSE)
+                """, Boolean.class));
     }
 
     private String write(Map<String, Object> value) {
