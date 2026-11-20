@@ -12,6 +12,9 @@ public interface BookDao {
 
     Optional<Book> findByIdAndUser(UUID id, UUID userId);
 
+    /** Storage key of the cover the ingestion worker extracted from an uploaded file. */
+    Optional<String> findUploadedCoverKey(UUID id);
+
     /** When status is null, returns all of the user's books. */
     List<Book> findByUser(UUID userId, String status);
 

@@ -33,6 +33,17 @@ public class BookDaoImpl implements BookDao {
             """;
 
     @Override
+    public Optional<String> findUploadedCoverKey(UUID id) {
+        return jdbc.queryForList(
+                        "SELECT extracted_metadata->>'cover_key' FROM books WHERE id = :id",
+                        new MapSqlParameterSource().addValue("id", id),
+                        String.class)
+                .stream()
+                .filter(key -> key != null && !key.isBlank())
+                .findFirst();
+    }
+
+    @Override
     public Optional<Book> findByIdAndUser(UUID id, UUID userId) {
         try {
             Book b = jdbc.queryForObject(

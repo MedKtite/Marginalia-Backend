@@ -51,6 +51,24 @@ public class CoverProxyController {
         }
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.readsake.dev.repo.dao.BookDao books;
+
+    /** Cover extracted from a user-uploaded PDF/EPUB; the bucket itself is private. */
+    @GetMapping("/covers/books/{id}")
+    public ResponseEntity<byte[]> uploadedCover(@org.springframework.web.bind.annotation.PathVariable java.util.UUID id) {
+        var key = books.findUploadedCoverKey(id);
+        if (storage == null || key.isEmpty()) return ResponseEntity.notFound().build();
+        try {
+            byte[] bytes = storage.readObject(key.get());
+            if (bytes == null || bytes.length == 0) return ResponseEntity.notFound().build();
+            return ok(new CachedCover(bytes, "image/jpeg"));
+        } catch (Exception e) {
+            log.warn("Uploaded book cover unavailable id={}", id);
+            return ResponseEntity.status(503).build();
+        }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(CoverProxyController.class);
 
     private static final String USER_AGENT =

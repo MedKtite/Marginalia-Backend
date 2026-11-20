@@ -2,7 +2,7 @@ package com.readsake.dev.dto.catalog;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-/** A precomputed top-author row from the nightly Gutenberg snapshot. */
+/** An author featured in the catalog discovery feed. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TopAuthorResponse {
 

@@ -6,6 +6,7 @@ import com.readsake.dev.dto.catalog.CatalogSearchResponse;
 import com.readsake.dev.dto.catalog.CatalogVolumeResponse;
 import com.readsake.dev.dto.catalog.LibrivoxBookResponse;
 import com.readsake.dev.dto.catalog.TopAuthorResponse;
+import com.readsake.dev.exceptions.ServiceUnavailableException;
 import com.readsake.dev.repo.dao.CatalogLookupCacheDao;
 import com.readsake.dev.repo.dao.GutenbergCatalogDao;
 import com.readsake.dev.repo.dao.SearchQueryDao;
@@ -30,6 +31,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -151,36 +153,53 @@ public class CatalogService {
         return response;
     }
 
-    /**
-     * "Recommended for you" — books surfaced from the user's own recent catalog
-     * searches. Each recent distinct query is re-run against the (24h-cached)
-     * Google layer, results are deduped across queries and marked FULL when the
-     * Gutenberg index has the title. Empty history falls back to broad starter
-     * interests selected from the request locale. Interleaved by query so one
-     * keyword can't monopolize.
-     */
-    /** Local-only Home feed; never calls Gutendex or Google Books. */
+    /** Recent releases, with a different subject featured each UTC day. */
     public List<CatalogVolumeResponse> trending(int max) {
-        final List<CatalogVolumeResponse> out = new ArrayList<>();
-        for (final Map<String, Object> row : gutenbergDao.trending(Math.min(Math.max(max, 1), 24))) {
-            out.add(fromGutenberg(row));
-        }
-        return out;
+        final List<String> subjects = List.of("fiction", "mystery", "history",
+                "biography", "fantasy", "science", "poetry");
+        final int index = Math.floorMod(LocalDate.now(ZoneOffset.UTC).toEpochDay(), subjects.size());
+        final int limit = Math.min(Math.max(max, 1), 24);
+        final String subject = subjects.get(index);
+        final List<CatalogVolumeResponse> newest =
+                googleFeed(List.of("subject:" + subject), limit, limit, true);
+        if (!newest.isEmpty()) return newest;
+
+        // Google Books can return no items for a subject-restricted search.
+        // Reuse the broad relevance search that powers recommendations.
+        return googleFeed(List.of(subject), limit, limit, false);
     }
 
-    /** Precomputed nightly author ranking; no external service calls. */
+    /** Authors in the current Google Books discovery feed, in feed order. */
     public List<TopAuthorResponse> topAuthors(int max) {
+        final int limit = Math.min(Math.max(max, 1), 24);
+        final List<CatalogVolumeResponse> books = trending(24);
+        final Map<String, Map<String, Object>> portraits = new HashMap<>();
+        if (!books.isEmpty()) {
+            for (final Map<String, Object> row : gutenbergDao.topAuthors(24)) {
+                final String name = (String) row.get("author_name");
+                portraits.putIfAbsent(TextNormalizer.normalize(name), row);
+            }
+        }
+
+        final Set<String> seen = new HashSet<>();
         final List<TopAuthorResponse> out = new ArrayList<>();
-        for (final Map<String, Object> row
-                : gutenbergDao.topAuthors(Math.min(Math.max(max, 1), 24))) {
-            final TopAuthorResponse author = new TopAuthorResponse();
-            author.setName((String) row.get("author_name"));
-            author.setRank(((Number) row.get("rank")).intValue());
-            author.setDownloadCount(((Number) row.get("download_count")).longValue());
-            author.setBookCount(((Number) row.get("book_count")).intValue());
-            author.setImageUrl((String) row.get("image_url"));
-            author.setTagline((String) row.get("tagline"));
-            out.add(author);
+        for (final CatalogVolumeResponse book : books) {
+            if (book.getAuthor() == null) continue;
+            for (final String rawName : book.getAuthor().split(", ")) {
+                final String name = rawName.strip();
+                final String key = TextNormalizer.normalize(name);
+                if (key.isEmpty() || !seen.add(key)) continue;
+                final TopAuthorResponse author = new TopAuthorResponse();
+                author.setName(name);
+                author.setRank(out.size() + 1);
+                final Map<String, Object> portrait = portraits.get(key);
+                if (portrait != null) {
+                    author.setImageUrl((String) portrait.get("image_url"));
+                    author.setTagline((String) portrait.get("tagline"));
+                }
+                out.add(author);
+                if (out.size() == limit) return out;
+            }
         }
         return out;
     }
@@ -191,25 +210,33 @@ public class CatalogService {
                 ? starterQueries(userId, acceptLanguage)
                 : recent;
 
-        // Home must remain independent of external catalog availability.
-        // Re-run personalization seeds against the locally synced Gutenberg
-        // index; explicit Discovery searches can still use Google Books.
+        return googleFeed(seeds, max, 8, false);
+    }
+
+    private List<CatalogVolumeResponse> googleFeed(
+            List<String> queries, int limit, int perQueryLimit, boolean newestFirst) {
         final List<List<CatalogVolumeResponse>> perQuery = new ArrayList<>();
-        for (final String q : seeds) {
+        for (final String query : queries) {
             try {
-                perQuery.add(gutenbergHits(q, 8));
+                perQuery.add(googleHits(query, perQueryLimit, newestFirst));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ServiceUnavailableException("Google Books is temporarily unavailable.");
             } catch (Exception e) {
-                log.warn("Recommendation lookup failed for '{}' ({})", q, e.getMessage());
+                log.warn("Google Books feed lookup failed ({})", e.getClass().getSimpleName());
             }
+        }
+        if (perQuery.isEmpty()) {
+            throw new ServiceUnavailableException("Google Books is temporarily unavailable.");
         }
 
         final Set<String> seen = new HashSet<>();
         final List<CatalogVolumeResponse> out = new ArrayList<>();
         // Round-robin across queries: 1st pick of each keyword, then 2nd, …
-        for (int i = 0; out.size() < max; i++) {
+        for (int i = 0; out.size() < limit; i++) {
             boolean any = false;
             for (final List<CatalogVolumeResponse> hits : perQuery) {
-                if (i >= hits.size() || out.size() >= max) continue;
+                if (i >= hits.size() || out.size() >= limit) continue;
                 any = true;
                 final CatalogVolumeResponse v = hits.get(i);
                 if (v.getTitle() == null) continue;
@@ -608,11 +635,16 @@ public class CatalogService {
     // ── Layer 2: Google Books (cached, 3s cap) ──────────────────────────────
 
     private List<CatalogVolumeResponse> googleHits(String query, int max) throws Exception {
-        final String cacheKey = TextNormalizer.normalize(query) + "|" + max;
+        return googleHits(query, max, false);
+    }
+
+    private List<CatalogVolumeResponse> googleHits(String query, int max, boolean newestFirst)
+            throws Exception {
+        final String cacheKey = query + "|" + max + "|" + newestFirst;
         final CachedGoogle cached = googleCache.get(cacheKey);
         if (cached != null && cached.fresh()) return cached.items();
 
-        final List<CatalogVolumeResponse> fetched = fetchGoogle(query, max);
+        final List<CatalogVolumeResponse> fetched = fetchGoogle(query, max, newestFirst);
         evictIfNeeded();
         googleCache.put(cacheKey, new CachedGoogle(fetched, Instant.now()));
         return fetched;
@@ -629,7 +661,7 @@ public class CatalogService {
         }
     }
 
-    private List<CatalogVolumeResponse> fetchGoogle(String query, int max) throws Exception {
+    private List<CatalogVolumeResponse> fetchGoogle(String query, int max, boolean newestFirst) throws Exception {
         if (Instant.now().isBefore(googleUnavailableUntil)) {
             throw new IllegalStateException("Google Books is temporarily unavailable");
         }
@@ -637,6 +669,7 @@ public class CatalogService {
                 .append(URLEncoder.encode(query, StandardCharsets.UTF_8))
                 .append("&maxResults=").append(max)
                 .append("&printType=books");
+        if (newestFirst) url.append("&orderBy=newest");
         if (apiKey != null && !apiKey.isBlank()) {
             url.append("&key=").append(URLEncoder.encode(apiKey, StandardCharsets.UTF_8));
         } else {
@@ -662,7 +695,6 @@ public class CatalogService {
                     googleUnavailableUntil = Instant.now().plus(GOOGLE_OUTAGE_COOLDOWN);
                     log.warn("Google Books temporarily unavailable (HTTP {}); suppressing requests for {} seconds",
                             status, GOOGLE_OUTAGE_COOLDOWN.toSeconds());
-                    return List.of();
                 }
                 throw new IllegalStateException("Google Books HTTP " + status);
             }
